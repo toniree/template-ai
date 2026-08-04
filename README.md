@@ -60,9 +60,6 @@ you write maps cleanly onto SQL Server semantics. If you want to point at a real
 
 ## Notes for interview day
 
-- **No JDK is currently installed on this machine** — install one (`brew install openjdk@21`) and
-  confirm `./mvnw test` passes *before* the interview starts, not during it.
 - Default profile is `sql`/H2 because it needs no external services — safest choice if you don't
   know in advance whether Mongo will be reachable in the interview environment.
-- Keep `WidgetService` as the pattern to copy: one interface, two thin implementations behind
-  `@Profile`, so you can pivot persistence choice mid-interview without touching the controller.
+
