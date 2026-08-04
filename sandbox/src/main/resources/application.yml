@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: sandbox
+  profiles:
+    active: sql   # switch to "mongo" to run against MongoDB instead
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.templateai: DEBUG
+---
+# ---- SQL profile: H2 in-memory, zero external setup ----------------------
+# To point this at a real SQL Server instead:
+#   1. add the mssql-jdbc dependency to pom.xml
+#   2. set spring.datasource.url=jdbc:sqlserver://<host>:1433;databaseName=<db>
+#   3. set spring.jpa.database-platform=org.hibernate.dialect.SQLServerDialect
+spring:
+  config:
+    activate:
+      on-profile: sql
+  datasource:
+    url: jdbc:h2:mem:sandbox;MODE=MSSQLServer;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+---
+# ---- Mongo profile ---------------------------------------------------------
+spring:
+  config:
+    activate:
+      on-profile: mongo
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/sandbox
