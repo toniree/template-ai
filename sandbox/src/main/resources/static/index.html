@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sandbox</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Widgets</h1>
+    <p class="subtitle">Minimal dependency-free UI over <code>/api/widgets</code></p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Create widget</h2>
+      <form id="create-form" class="form-row">
+        <label>
+          Name
+          <input type="text" name="name" id="name" required maxlength="255" placeholder="Gizmo">
+        </label>
+        <label>
+          Quantity
+          <input type="number" name="quantity" id="quantity" required min="0" step="1" value="0">
+        </label>
+        <button type="submit">Add</button>
+      </form>
+      <p id="form-error" class="error" role="alert" hidden></p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>All widgets</h2>
+        <button id="refresh-btn" type="button">Refresh</button>
+      </div>
+      <p id="list-error" class="error" role="alert" hidden></p>
+      <table id="widget-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Quantity</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="widget-table-body">
+          <tr><td colspan="4" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
