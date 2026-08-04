@@ -11,6 +11,8 @@ Scaffold for the Brex Senior SWE AI-assisted coding interview (Java / Spring Boo
   behind a single `WidgetService` interface — swap by flipping one property, no code changes.
 - springdoc/Swagger UI at `/swagger-ui.html` for quick manual poking during the interview
 - Actuator health/info at `/actuator/health`
+- Minimal dependency-free HTML/CSS/vanilla-JS frontend at `/`, served as static resources — table
+  view + create form over the API, no build step
 
 ## Layout
 
@@ -20,6 +22,11 @@ sandbox/src/main/java/com/templateai/sandbox/
   widget/                WidgetDto, WidgetService (interface), WidgetController
   widget/jpa/            WidgetEntity, WidgetJpaRepository, JpaWidgetService   (@Profile("sql"))
   widget/mongo/          WidgetDocument, WidgetMongoRepository, MongoWidgetService (@Profile("mongo"))
+
+sandbox/src/main/resources/static/
+  index.html             table + create form
+  styles.css
+  app.js                 fetch-based CRUD client, no framework/build step
 ```
 
 `Widget` is a throwaway example resource that demonstrates the full pattern (DTO validation,
@@ -36,6 +43,7 @@ cd sandbox
 ```
 
 Then:
+- `http://localhost:8080/` — the frontend (table + create form)
 - `http://localhost:8080/swagger-ui.html` — try the API
 - `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:sandbox`, user `sa`, blank password) — SQL profile only
 - `http://localhost:8080/actuator/health`
@@ -62,4 +70,7 @@ you write maps cleanly onto SQL Server semantics. If you want to point at a real
 
 - Default profile is `sql`/H2 because it needs no external services — safest choice if you don't
   know in advance whether Mongo will be reachable in the interview environment.
+- To point the frontend at a new/renamed resource, change `API_BASE` at the top of `app.js` and
+  adjust the field names in `renderRow`/the form inputs — the fetch/error-handling/render
+  plumbing underneath doesn't need to change.
 
