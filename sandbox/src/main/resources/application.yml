@@ -24,9 +24,12 @@ logging:
 
 ---
 # ---- h2: the default. In-memory, seeded on boot, rebuilt on every restart. ----
-# MODE=PostgreSQL so the SQL and JPA you write here maps onto a real Postgres later without
-# rewrites. show-sql is on: it is the only way to confirm the query you think you wrote is the
-# query that ran.
+# MODE=PostgreSQL is a syntax compatibility mode: it reduces the common differences (identifier
+# quoting, LIMIT/OFFSET, COALESCE, identity columns) so ordinary JPA and JPQL written here won't
+# need rewriting later. It is not an emulator — locking, constraint enforcement, isolation
+# behaviour, and native SQL still have to be verified against a real PostgreSQL.
+#
+# show-sql is on: it is the only way to confirm the query you think you wrote is the query that ran.
 spring:
   config:
     activate:

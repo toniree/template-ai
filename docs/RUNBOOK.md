@@ -13,23 +13,26 @@ Two steps, in this order. Step 1 must run **online** — it is what makes step 2
 cd sandbox
 
 # 1. ONLINE, once. Populates ~/.m2 with every dependency.
-./mvnw clean test           # expect: Tests run: 13, Failures: 0, Errors: 0
+./mvnw clean test           # expect: Failures: 0, Errors: 0 — write down the test count
 
 # 2. OFFLINE preflight. Proves ~/.m2 is complete and the interview commands will work
 #    with no network at all. If this fails, go back to step 1 — do not debug it live.
-./mvnw -o clean test        # expect: same 13, ~4s
+./mvnw -o clean test        # same count, same result
 ./mvnw -o spring-boot:run   # then open http://localhost:8080
 ```
+
+Write the count down rather than trusting a number in a doc: it changes the moment you add or
+delete a test, and its only job is to let you notice tests that have silently stopped running.
 
 `-o` downloads nothing; it only succeeds once every artifact is already cached. A fresh machine, a
 cleared `~/.m2`, or **any `pom.xml` change** breaks it until you run online again. That's why the
 offline run is a verification step and not just a habit.
 
-- [ ] Online run done, then `./mvnw -o clean test` passes with **13 tests**
-- [ ] App boots and the UI lists four seeded tasks
+- [ ] Online run done, then `./mvnw -o clean test` passes offline with the same test count
+- [ ] App boots and the UI lists the seeded tasks
 - [ ] `/` and `/swagger-ui.html` both load, and `/v3/api-docs` returns JSON (not a 500)
 - [ ] Agent open at the **repo root** so it picks up `CLAUDE.md`
-- [ ] `prompts/00-kickoff.md` open in a tab, ready to paste
+- [ ] `prompts/QUICK.md` open in a tab, ready to paste
 - [ ] Swagger and the H2 console `/h2-console` open in tabs
 - [ ] Screen share rehearsed: editor, browser, terminal all visible without alt-tab hunting
 - [ ] Clean git tree, and you know the checkpoint habit below
@@ -44,13 +47,30 @@ dependence on the network holding up. Drop it for one run after editing `pom.xml
 | Minutes | Do |
 |---|---|
 | 0–5 | **Agree the features.** Negotiate actively (below). Write them in a scratch file. |
-| 5–8 | Paste `00-kickoff.md`, then `02-data-model.md`. Approve or correct the model. No code yet. |
-| 8–12 | Entities + repositories only. Run `./mvnw -o test`. Green before continuing. |
-| 12–22 | Feature 1 vertical: service → controller → curl → UI. **Demo it, then checkpoint.** |
+| 5–10 | Paste the kickoff prompt from `prompts/QUICK.md`. Review and correct the model and API. No code yet. |
+| 10–22 | **Feature 1 as one complete vertical slice.** Then demo it and checkpoint. |
 | 22–32 | Feature 2, same loop. Checkpoint. |
 | 32–40 | Feature 3, same loop. Checkpoint. |
-| 40–45 | Tests on the rule that matters. Then `06-scope-review.md`. |
+| 40–45 | Tests on any rule still uncovered. Then `06-scope-review.md`. |
 | 45–50 | `07-endgame.md` — demo pass, README, the closing narrative. |
+
+### What "one complete vertical slice" means
+
+Approving the model on paper is worth the five minutes. **Building it as a horizontal phase is
+not.** Do not write all the entities and repositories first: that produces ten minutes with nothing
+runnable, and it commits you to a schema you haven't exercised yet — the fields you got wrong stay
+invisible until something finally calls them.
+
+Slice one is the smallest thing that works end to end:
+
+1. persistence for *this* behaviour only — and skip it entirely if the behaviour stores nothing,
+2. the service method holding the rule,
+3. the endpoint,
+4. one integration test: happy path plus the rule,
+5. enough UI to click it.
+
+Then `./mvnw -o test`, one curl, and **checkpoint before adding the next behaviour**. The next
+slice adds its own fields to the entity when it needs them.
 
 The non-negotiable: **something demoable exists from minute 22 onward.** Never be in a state where
 nothing runs.
@@ -86,9 +106,11 @@ This is leverage, not a formality. Shaping scope well is itself part of what's b
 - **Ask what "done" means to them.** "Does done here mean the API works, or that I can click
   through it?" Then build to that answer instead of guessing.
 
-Delete the sample `task/` package as soon as you know the real domain — leaving it in place while
-building something unrelated just confuses the reader. If the problem *is* a list of things with a
-status, keep it and rename.
+On the sample `task/` package: if the problem is a persisted resource with a status, **rename and
+adapt it** rather than starting over. If it's a different shape, **leave it running** while you
+build — it's your reference for the patterns and your fallback demo. Delete it once your first real
+slice, the frontend, and a repointed `ErrorContractIT` are all green, then checkpoint. Deleting it
+up front buys nothing and costs you a working app.
 
 ---
 
@@ -112,7 +134,8 @@ Over-engineering is the most common way this round is lost. Concretely:
 | Trap | Instead |
 |---|---|
 | Interface + impl for one service | Concrete `@Service` |
-| A generic `BaseEntity` / `AbstractCrudService` | Copy the five files |
+| A generic `BaseEntity` / `AbstractCrudService` | Copy the concrete files |
+| All entities and repositories up front | One vertical slice at a time |
 | Building the schema for features 4–5 while doing 1 | Model only what feature 1 needs |
 | Adding a cache/queue "for scale" | Say the number that would justify it, then don't |
 | Perfecting feature 1 while 2 and 3 don't exist | Ship all three at 80% |
@@ -165,8 +188,8 @@ clock is the mistake.
 | AuthN/AuthZ | "Caller is treated as a trusted admin. Real version: OIDC at the edge, role checks in the service." |
 | Pagination | "List endpoints return everything. First thing I'd add at real row counts — `Pageable` in, a stable envelope out, page size capped." |
 | Idempotency on writes | "A client timeout plus a retry is a duplicate today. I'd take a client key, store it under a unique index, and replay the stored response." |
-| Optimistic locking | "Two concurrent PATCHes last-write-wins. `@Version` plus a 409 is the cheap fix." |
+| Concurrency control | "Nothing here has an invariant two requests can break. When one appears, I'd start with a unique constraint or a conditional update, and only reach for `@Version` or a row lock if those don't fit." |
 | Schema migrations | "`ddl-auto: create-drop` is a demo affordance. Production is Flyway from day one." |
-| Real database | "H2 in Postgres mode. The JPA maps across; connection pooling and migrations are the delta." |
+| Real database | "H2 in PostgreSQL compatibility mode, so the syntax carries over. Locking, constraint enforcement, isolation behaviour and any native SQL would need verifying against real PostgreSQL — plus migrations and pooling." |
 | Observability | "One request log line today. Production wants metrics, traces, and structured logs with a correlation id." |
 | Rate limiting, caching, async | "None of it earns its complexity at this volume. Here's the number that would change my mind." |

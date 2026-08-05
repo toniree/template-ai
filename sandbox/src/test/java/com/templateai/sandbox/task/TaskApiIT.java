@@ -99,6 +99,25 @@ class TaskApiIT {
                 .andExpect(jsonPath("$[?(@.title == 'Filter fixture')]").exists());
     }
 
+    /**
+     * A PATCH may omit the title entirely, but if it sends one it has to contain something.
+     * {@code @Size(min = 1)} counts characters and would let this through.
+     */
+    @Test
+    void rejectsAPatchWhoseTitleIsOnlyWhitespace() throws Exception {
+        String location = createTask("Real title");
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"title":"   "}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Validation failed")))
+                .andExpect(jsonPath("$.details[0]", is("title must not be blank")));
+
+        // ...and the stored title is untouched.
+        mockMvc.perform(get(location)).andExpect(jsonPath("$.title", is("Real title")));
+    }
+
     @Test
     void rejectsACreateWithABlankTitle() throws Exception {
         mockMvc.perform(post("/api/tasks").contentType(MediaType.APPLICATION_JSON)

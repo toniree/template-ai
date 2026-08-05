@@ -25,8 +25,11 @@ Then give me, in this order and nothing else:
 3. WHAT I'D ASSUME IF I GET NO ANSWERS — the default reading of every ambiguity, one line each.
    These are what I'll state out loud and build against.
 
-4. WHAT IN THIS REPO ALREADY APPLIES — name the files I keep as-is, and whether the sample `task`
-   package should be deleted, renamed, or extended for this problem.
+4. WHAT IN THIS REPO ALREADY APPLIES — name the files I keep as-is, and say whether the sample
+   `task` package should be renamed and adapted (if this problem is a persisted resource with a
+   status) or kept as a working reference while I build something differently shaped. Do not
+   propose deleting it: it stays until a real slice, the frontend, and a repointed ErrorContractIT
+   are green.
 
 Be concrete and terse. No preamble, no code.
 ```
