@@ -8,12 +8,14 @@ Do not skip to code because the problem "seems obvious." Reworking an entity at 
 single most expensive thing that can happen to you.
 
 ```
-We agreed on these features for a <domain, e.g. corporate card spend management> product:
+We agreed on these features for a <domain, e.g. corporate card spend management> product
+(list only the ones we actually agreed — there may be three, four, or five):
 
 1. <feature>
 2. <feature>
 3. <feature>
-4. <feature>
+<4. feature — delete this line if we agreed on fewer>
+<5. feature — delete this line if we agreed on fewer>
 
 Constraints: 50 minutes total, this Spring Boot + H2 scaffold, solo. Working demo matters more
 than coverage. Do NOT write any code yet.
@@ -22,14 +24,15 @@ Give me, in this order and nothing else:
 
 1. DATA MODEL — the minimum set of entities. For each: fields with types, the owning side of every
    relationship, and which columns get an index. Call out anything that must be a `long` minor-unit
-   amount. Flag any field you added that is not required by the four features above, and justify it
-   in one line or drop it.
+   amount. Flag any field you added that is not required by the features listed above, and justify
+   it in one line or drop it.
 
 2. API — one line per endpoint: METHOD /path -> status codes. Mark which are needed for the demo
    and which are nice-to-have.
 
-3. BUILD ORDER — the 4 features sequenced so that something demoable exists after each one.
-   Estimate minutes each. If the total exceeds 40, say what you'd cut and stop there.
+3. BUILD ORDER — every feature listed above, sequenced so that something demoable exists after
+   each one. Estimate minutes each. If the total exceeds 40, tell me which of them to cut and
+   stop there rather than compressing all of them.
 
 4. CUT LIST — what a production version needs that we are deliberately not building today
    (auth, ledger, reconciliation, rate limits, whatever applies). One line each, no code.

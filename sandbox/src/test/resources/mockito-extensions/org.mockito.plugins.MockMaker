@@ -6,8 +6,8 @@
 # "Could not initialize inline Byte Buddy mock maker" even though nothing here mocks anything.
 # It is intermittent, which is worse than a hard failure: green at home, red on the day.
 #
-# Verified: with this file removed and -XX:+DisableAttachMechanism, 20 of 20 tests error.
-# With it, all pass. Reproduce that check with:
+# Verified: with this file removed and -XX:+DisableAttachMechanism, every test in the suite errors.
+# With it, they all pass. Reproduce that check with:
 #   ./mvnw -o clean test -DargLine="-XX:+DisableAttachMechanism"
 #
 # If you later need to stub a final class or a static method, delete this file and register

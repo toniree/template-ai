@@ -9,6 +9,10 @@
  *   form       { title, submit, fields: [...] } — omit for a read-only screen
  *   filters    [{ name, label, from }] — sent as query params
  *   onCreated  (row) => ({ text, type }) toast, for when "created" isn't the same as "succeeded"
+ *   idempotent true if POST moves money — sends a per-submission Idempotency-Key header
+ *
+ * This covers list/create/table screens. A dashboard, wizard, map or detail workflow should be
+ * the smallest bespoke HTML/JS instead — do not widen the renderer below to absorb one.
  */
 
 const RESOURCES = {
@@ -75,6 +79,8 @@ const RESOURCES = {
     title: "Transactions",
     subtitle: "Every authorization attempt, approved or declined.",
     paged: true,
+    // Money-moving POST: send an Idempotency-Key so a retried submission can't double-charge.
+    idempotent: true,
     columns: [
       { key: "id", label: "ID" },
       { key: "cardId", label: "Card" },
@@ -305,6 +311,11 @@ async function submitForm(event, config) {
   const error = el("form-error");
   error.hidden = true;
 
+  // An impatient double-click on a money-moving form is two charges. Hold the button down for
+  // the duration of the request; re-enable in `finally` so a failure doesn't strand the form.
+  const submitButton = event.target.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+
   const data = new FormData(event.target);
   const payload = {};
   for (const field of config.form.fields) {
@@ -314,14 +325,20 @@ async function submitForm(event, config) {
     else payload[field.name] = raw;
   }
 
+  // One key per submission: retrying THIS request is the same charge, a fresh click is a new one.
+  // crypto.randomUUID needs a secure context — fine on localhost, which is how this runs.
+  const headers = config.idempotent ? { "Idempotency-Key": crypto.randomUUID() } : undefined;
+
   try {
-    const created = await request(config.path, { method: "POST", body: payload });
+    const created = await request(config.path, { method: "POST", body: payload, headers });
     const result = config.onCreated?.(created) ?? { text: "Created", type: "success" };
     toast(result.text, result.type);
     await load();
   } catch (err) {
     error.textContent = err.message;
     error.hidden = false;
+  } finally {
+    submitButton.disabled = false;
   }
 }
 

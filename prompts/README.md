@@ -21,7 +21,11 @@ re-explain the stack, the layout, or the no-over-engineering rules — keep it t
    Never queue two features in one prompt; you cannot review what you cannot read.
 3. **Run after every feature.** `./mvnw -o test` and one curl. Broken-and-unnoticed is the only
    unrecoverable state in a 50-minute interview.
-4. **Narrate the tradeoff, not the typing.** While the agent works, tell the interviewer what you
+4. **Checkpoint every green feature.** The moment it passes and demos:
+   `git add -A && git commit -q -m "feat: <feature>"`. Ten seconds, and it is what makes step 6
+   possible — an uncommitted green state cannot be returned to.
+5. **Narrate the tradeoff, not the typing.** While the agent works, tell the interviewer what you
    asked for and what you deliberately excluded. That is the part being graded.
-5. **Timebox debugging to 3 minutes.** Past that, `03-debug.md`, and if it's still broken, revert
-   to the last green state and take the simpler path.
+6. **Timebox debugging to 3 minutes.** Past that, `03-debug.md`. If it's still broken, throw the
+   experiment away with `git reset --hard HEAD` (add `git clean -fd` if new files appeared), get
+   back to your last checkpoint, and take the simpler path.

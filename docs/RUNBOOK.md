@@ -31,7 +31,7 @@ offline run is a verification step and not just a habit.
 - [ ] `prompts/00-kickoff.md` open in a tab, ready to paste
 - [ ] Swagger and H2 console `/h2-console` open in tabs
 - [ ] Screen share rehearsed: editor, browser, terminal all visible without alt-tab hunting
-- [ ] Working from `main` on a clean tree, so `git checkout .` is always an escape hatch
+- [ ] Working from `main` on a clean tree, and you know the checkpoint habit below
 
 During the call, keep `-o` on every Maven command: it removes dependency-resolution latency and any
 dependence on the network holding up. Drop it for one run after editing `pom.xml`.
@@ -45,14 +45,27 @@ dependence on the network holding up. Drop it for one run after editing `pom.xml
 | 0–5 | **Agree the features.** Negotiate actively (below). Write them in a scratch file. |
 | 5–8 | Paste `00-kickoff.md`. Review the data model. Approve or correct it. Nothing else. |
 | 8–12 | Entities + repositories only. Run `./mvnw -o test`. Green before continuing. |
-| 12–22 | Feature 1 vertical: service → controller → curl → UI config. **Demo it.** |
-| 22–32 | Feature 2, same loop. |
-| 32–40 | Feature 3, same loop. |
+| 12–22 | Feature 1 vertical: service → controller → curl → UI config. **Demo it, then checkpoint.** |
+| 22–32 | Feature 2, same loop. Checkpoint. |
+| 32–40 | Feature 3, same loop. Checkpoint. |
 | 40–45 | Tests on the rule that matters (`04-tests.md`). |
 | 45–50 | `05-endgame.md` — demo pass, README, the closing narrative. |
 
 The non-negotiable: **something demoable exists from minute 22 onward.** Never be in a state where
 nothing runs.
+
+### Checkpoint after every green feature
+
+This is what makes the recovery move below actually work. The moment a feature is green and
+demoable — tests pass, you've clicked through it — commit:
+
+```bash
+git add -A && git commit -q -m "feat: <feature>"
+```
+
+Ten seconds each, three or four times an hour. It costs nothing and it is the only thing that
+turns "this experiment went wrong" into a five-second problem instead of a five-minute one.
+Nobody is grading your commit messages.
 
 ---
 
@@ -120,8 +133,23 @@ it and move on.
 **Agent is thrashing on a bug:** stop prompting, read the stack trace yourself, then give it the
 one file and one hypothesis (`prompts/03-debug.md`).
 
-**Nothing compiles and you're lost:** `git checkout .` back to the last green state. Losing four
-minutes of work beats losing the demo.
+**Nothing compiles and you're lost:** throw the experiment away and go back to your last
+checkpoint commit:
+
+```bash
+git reset --hard HEAD        # discards ALL uncommitted work, tracked and staged
+git clean -fd                # only if the mess included new files
+```
+
+Then re-run `./mvnw -o test` to confirm you're actually green again before continuing.
+
+This only rescues you as far back as your **last commit** — which is the entire reason for the
+checkpoint habit above. `git checkout .` is not a substitute: it reverts tracked files to the
+index, so it cannot recover a green state you never committed, and it silently leaves any new
+files the agent created behind. If you have not committed since the last green state, there is
+nothing to go back to.
+
+Losing four minutes of work beats losing the demo.
 
 **You're behind at minute 35:** drop the third feature, announce it — *"I'd rather hand you two
 features that work than three that don't"* — and spend the time making two solid. That sentence is
