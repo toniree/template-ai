@@ -15,4 +15,9 @@ buildNumber.properties
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+# IDE / OS noise
 .idea/
+*.iml
+.vscode/
+.DS_Store

@@ -78,6 +78,22 @@
 
 	<build>
 		<plugins>
+			<!--
+			  Surefire skips **/*IT.java by default (it reserves those for failsafe). Widening the
+			  includes means `./mvnw test` runs every test regardless of what it got named — one
+			  command, no surprises about which tests actually executed.
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+						<include>**/*IT.java</include>
+					</includes>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

@@ -1,76 +1,98 @@
 # template-ai
 
-Scaffold for the Brex Senior SWE AI-assisted coding interview (Java / Spring Boot equivalent of
-[brexhq/ai_assisted_coding_interview](https://github.com/brexhq/ai_assisted_coding_interview)).
+Interview scaffold for the Brex senior SWE round: a working corporate-card spend API with a
+database, a REST layer, and a frontend that reads from it — plus the prompt library and playbooks
+for the 100 minutes.
 
-## Stack
+**Java 21 · Spring Boot 3.4 · H2 (Postgres-compatible) · vanilla-JS UI, no build step**
 
-- Java 21, Spring Boot 3.4.1, Maven
-- REST via Spring MVC, Bean Validation, global JSON error handling
-- Swappable persistence: **JPA/H2** (`sql` profile, default) or **MongoDB** (`mongo` profile),
-  behind a single `WidgetService` interface — swap by flipping one property, no code changes.
-- springdoc/Swagger UI at `/swagger-ui.html` for quick manual poking during the interview
-- Actuator health/info at `/actuator/health`
-- Minimal dependency-free HTML/CSS/vanilla-JS frontend at `/`, served as static resources — table
-  view + create form over the API, no build step
+```bash
+cd sandbox
+./mvnw -o spring-boot:run     # http://localhost:8080 — seeded and clickable
+./mvnw -o test                # 11 tests, ~10s
+```
+
+## Start here
+
+| | |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | The working agreement the agent reads every session. Read it once yourself. |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | The AI round: pre-flight, minute-by-minute, how to negotiate scope. |
+| [`docs/SYSTEM-DESIGN.md`](docs/SYSTEM-DESIGN.md) | The design round: clarifying questions, the scale arithmetic, fintech data models, failure modes. |
+| [`prompts/`](prompts/README.md) | Six copy-paste prompts, ordered by when you use them. |
+| [`docs/CHEATSHEET.md`](docs/CHEATSHEET.md) | Spring/JPA/HTTP reference, plus T-SQL → Postgres translations. |
+
+## What's already built
+
+A corporate-card slice, chosen because it exercises the patterns a fintech prompt grades — not
+because you'll necessarily keep it.
+
+- `POST /api/cards`, `GET /api/cards`, `GET /api/cards/{id}`, `PATCH /api/cards/{id}`
+- `POST /api/transactions` (authorize), `GET /api/transactions?cardId&page&size`, `GET /api/transactions/{id}`
+
+Cards carry a spend limit; authorizing a charge checks it and records the outcome. Declines are
+stored rather than thrown away, because the decline history *is* the product.
+
+**Patterns worth pointing at during the interview:**
+
+| Pattern | Where |
+|---|---|
+| Money as `long` minor units + ISO-4217 currency, never a float | `Card`, `Transaction` |
+| Idempotency on the money-moving POST via `Idempotency-Key`, unique index, 200 on replay | `TransactionService.authorize` |
+| Business rejection is 201 + `DECLINED`, not a 4xx | `TransactionController` |
+| Per-row aggregate in one grouped query, not N+1 | `TransactionRepository.sumAmountGroupedByCard` |
+| Balance derived from entries so it cannot drift | `TransactionService.declineReason` |
+| Row lock so two concurrent charges can't both pass the same limit check | `CardRepository.findWithLockById` |
+| No `DELETE` on cards — financial records are cancelled, not deleted | `CardService.update` |
+| One typed error shape for every failure | `common/GlobalExceptionHandler` |
+| Capped pagination behind a stable envelope | `common/PageResponse` |
 
 ## Layout
 
 ```
-sandbox/src/main/java/com/templateai/sandbox/
-  common/exception/     ApiError, ResourceNotFoundException, GlobalExceptionHandler
-  widget/                WidgetDto, WidgetService (interface), WidgetController
-  widget/jpa/            WidgetEntity, WidgetJpaRepository, JpaWidgetService   (@Profile("sql"))
-  widget/mongo/          WidgetDocument, WidgetMongoRepository, MongoWidgetService (@Profile("mongo"))
-
-sandbox/src/main/resources/static/
-  index.html             table + create form
-  styles.css
-  app.js                 fetch-based CRUD client, no framework/build step
+CLAUDE.md            agent working agreement — loaded automatically
+docs/                runbook, system-design prep, cheatsheet
+prompts/             00-kickoff → 05-endgame
+sandbox/
+  src/main/java/com/templateai/sandbox/
+    common/          ApiError, ApiException, GlobalExceptionHandler, PageResponse,
+                     AppConfig (Clock), RequestLoggingFilter
+    card/            Card, CardRepository, CardDtos, CardService, CardController
+    transaction/     Transaction, TransactionRepository, TransactionDtos,
+                     TransactionService, TransactionController
+    DemoData.java    seeds the h2 profile so the UI is never empty
+  src/main/resources/static/
+    app.js           config-driven UI — a screen is one entry in RESOURCES
+    index.html, styles.css
+  src/test/…         CardApiIT, TransactionApiIT — copy these for new features
 ```
 
-`Widget` is a throwaway example resource that demonstrates the full pattern (DTO validation,
-not-found handling, both persistence backends). Delete it once the real interview prompt lands,
-or copy the same folder shape (`<feature>/`, `<feature>/jpa/`, `<feature>/mongo/`) for the
-resource you actually need to build.
+One flat package per feature, five files, no `impl/` or `mapper/` layers. Copy the shape.
 
-## Running
+## If the interview isn't about cards
 
 ```bash
-cd sandbox
-./mvnw spring-boot:run                      # SQL/H2 profile (default, zero setup)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=mongo   # requires a local mongod on :27017
+rm -rf sandbox/src/main/java/com/templateai/sandbox/{card,transaction} \
+       sandbox/src/test/java/com/templateai/sandbox/{card,transaction} \
+       sandbox/src/main/java/com/templateai/sandbox/DemoData.java
 ```
 
-Then:
-- `http://localhost:8080/` — the frontend (table + create form)
-- `http://localhost:8080/swagger-ui.html` — try the API
-- `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:sandbox`, user `sa`, blank password) — SQL profile only
-- `http://localhost:8080/actuator/health`
+Then run `prompts/00-kickoff.md`. Everything in `common/`, the error contract, the config-driven
+UI, and the test templates carry over unchanged.
 
-## Testing
+## Profiles
 
-```bash
-./mvnw test
-```
+| Profile | Use |
+|---|---|
+| `h2` (default) | in-memory, seeded on boot, zero setup — what you demo on |
+| `test` | isolated in-memory database, no seed data, quiet logs |
+| `postgres` | `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16` |
 
-`WidgetControllerIT` runs a full create/get/update/delete flow through MockMvc against the SQL
-profile — a template for testing whatever resource you build live.
+H2 runs in `MODE=PostgreSQL`, so the SQL and JPA you write maps onto real Postgres when you switch.
 
-## Switching to real SQL Server instead of H2
+## Deliberately not here
 
-H2 is configured in MSSQLServer compatibility mode (`MODE=MSSQLServer` in the JDBC URL) so JPA/SQL
-you write maps cleanly onto SQL Server semantics. If you want to point at a real instance:
-
-1. Add `com.microsoft.sqlserver:mssql-jdbc` to `pom.xml`.
-2. In `application.yml` under the `sql` profile, replace the H2 `datasource.url`/`driver-class-name`
-   with your SQL Server connection string and `org.hibernate.dialect.SQLServerDialect`.
-
-## Notes for interview day
-
-- Default profile is `sql`/H2 because it needs no external services — safest choice if you don't
-  know in advance whether Mongo will be reachable in the interview environment.
-- To point the frontend at a new/renamed resource, change `API_BASE` at the top of `app.js` and
-  adjust the field names in `renderRow`/the form inputs — the fetch/error-handling/render
-  plumbing underneath doesn't need to change.
-
+Auth, an append-only double-entry ledger, capture/settlement as separate records from
+authorization, reconciliation, idempotency-key expiry, rate limiting, cursor pagination. Each is
+the right call for a scaffold and the wrong call for production —
+[`docs/SYSTEM-DESIGN.md`](docs/SYSTEM-DESIGN.md) covers what changes and when.

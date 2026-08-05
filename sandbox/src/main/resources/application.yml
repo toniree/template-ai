@@ -2,7 +2,13 @@ spring:
   application:
     name: sandbox
   profiles:
-    active: h2   # switch to "postgres" to run against a real PostgreSQL instance
+    active: h2          # "postgres" to run against a real instance; "test" is used by the test suite
+  jpa:
+    # Off deliberately: entities must be mapped to DTOs inside the service transaction. Leaving it
+    # on lets lazy loads fire during JSON serialization, which is how N+1 queries sneak in.
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non_null   # nulls (e.g. declineReason on an approval) stay out of the JSON
 
 management:
   endpoints:
@@ -17,8 +23,9 @@ springdoc:
 logging:
   level:
     com.templateai: DEBUG
+
 ---
-# ---- H2 profile: in-memory, zero external setup ---------------------------
+# ---- h2: default. In-memory, zero setup, reseeded on every boot. --------------
 spring:
   config:
     activate:
@@ -30,7 +37,7 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: create-drop
     show-sql: true
     properties:
       hibernate:
@@ -39,10 +46,30 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
 ---
-# ---- Postgres profile ------------------------------------------------------
-# Point this at a real PostgreSQL instance, e.g. via:
-#   docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
+# ---- test: isolated database, quiet logs, no demo seed. ----------------------
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+logging:
+  level:
+    com.templateai: INFO
+    org.hibernate: WARN
+
+---
+# ---- postgres: docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres \
+#                  -e POSTGRES_DB=sandbox postgres:16
 spring:
   config:
     activate:
@@ -59,4 +86,3 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.PostgreSQLDialect
