@@ -47,7 +47,14 @@ transaction.
 
 **Errors** — throw `ApiException.notFound/badRequest/conflict`. Never try/catch to produce an HTTP
 status; `GlobalExceptionHandler` owns every response shape. Validate input with Bean Validation
-annotations on the request record, not with `if` statements in the service.
+annotations on the request record, not with `if` statements in the service. That handler extends
+`ResponseEntityExceptionHandler` so Spring's own exceptions keep their correct status codes — do
+not remove that, or a catch-all turns every malformed request into a 500.
+
+**Request records** — numeric and boolean fields are **boxed** (`Long`, not `long`). A primitive
+silently becomes `0`/`false` when the caller omits it, which validation then accepts: a partial
+`PATCH` would zero a spend limit as a side effect. Required → `@NotNull`. Optional on a PATCH →
+nullable, and the service applies only non-null fields.
 
 **Queries** — aggregate in the database (`sum`, `count`, `group by`), never by loading rows and
 summing in Java. If a list endpoint needs a per-row aggregate, fetch it for all rows in one

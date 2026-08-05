@@ -63,6 +63,41 @@ class CardApiIT {
                 .andExpect(jsonPath("$.status", is("FROZEN")));
     }
 
+    /** A partial PATCH must not zero the fields it doesn't mention. */
+    @Test
+    void patchingOnlyTheStatusLeavesTheSpendLimitIntact() throws Exception {
+        String location = createCard();
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"FROZEN"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("FROZEN")))
+                .andExpect(jsonPath("$.spendLimitMinor", is(250_000)));
+    }
+
+    @Test
+    void patchingOnlyTheSpendLimitLeavesTheStatusIntact() throws Exception {
+        String location = createCard();
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"spendLimitMinor":5000}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("ACTIVE")))
+                .andExpect(jsonPath("$.spendLimitMinor", is(5000)));
+    }
+
+    /** Omitting a required amount must be rejected, not silently treated as zero. */
+    @Test
+    void rejectsACreateThatOmitsTheSpendLimit() throws Exception {
+        mockMvc.perform(post("/api/cards").contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"cardholderName":"Ada","last4":"4242","currency":"USD"}"""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0]", is("spendLimitMinor must not be null")));
+    }
+
     @Test
     void rejectsAnInvalidPayloadWithFieldDetails() throws Exception {
         mockMvc.perform(post("/api/cards")

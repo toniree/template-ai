@@ -73,8 +73,12 @@ public class CardService {
         if (card.getStatus() == Card.Status.CANCELLED) {
             throw ApiException.conflict("Card " + id + " is cancelled and can no longer be modified");
         }
-        card.setStatus(request.status());
-        card.setSpendLimitMinor(request.spendLimitMinor());
+        if (request.status() != null) {
+            card.setStatus(request.status());
+        }
+        if (request.spendLimitMinor() != null) {
+            card.setSpendLimitMinor(request.spendLimitMinor());
+        }
         return CardResponse.from(card, spent(id));
     }
 

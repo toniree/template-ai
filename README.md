@@ -44,7 +44,8 @@ stored rather than thrown away, because the decline history *is* the product.
 | Balance derived from entries so it cannot drift | `TransactionService.declineReason` |
 | Row lock so two concurrent charges can't both pass the same limit check | `CardRepository.findWithLockById` |
 | No `DELETE` on cards — financial records are cancelled, not deleted | `CardService.update` |
-| One typed error shape for every failure | `common/GlobalExceptionHandler` |
+| One typed error shape for every failure, correct 4xx for malformed requests | `common/GlobalExceptionHandler` |
+| True partial `PATCH` — omitted fields are left alone, not zeroed | `CardService.update` |
 | Capped pagination behind a stable envelope | `common/PageResponse` |
 
 ## Layout

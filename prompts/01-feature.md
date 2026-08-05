@@ -18,6 +18,8 @@ Files: <Feature>.java, <Feature>Repository.java, <Feature>Dtos.java, <Feature>Se
 
 Validation goes on the request record. Business rules go in the service. Errors are
 ApiException.notFound/badRequest/conflict. Map to a response record inside the service.
+Box numeric fields on request records (Long, not long) so an omitted field fails @NotNull instead
+of silently defaulting to 0.
 
 Do not add: an interface for the service, a mapper class, endpoints I did not list, or fields
 outside the ones the behaviour above needs. Stop when it compiles; I'll run it.
