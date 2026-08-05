@@ -1,57 +1,39 @@
-# 00 · Kickoff — requirements to a plan you can approve
+# 00 · Kickoff — orient the agent and surface the questions worth asking
 
-Run this **once**, immediately after agreeing the feature list, before any code. It converts a
-verbal spec into a data model + API contract + explicit cut list. Everything downstream gets
-cheaper because the model is settled.
-
-Do not skip to code because the problem "seems obvious." Reworking an entity at minute 30 is the
-single most expensive thing that can happen to you.
+Run this **first**, right after you hear the problem. It costs a minute and it produces the
+clarifying questions you ask the interviewer — which is itself graded. No code comes out of it.
 
 ```
-We agreed on these features for a <domain, e.g. corporate card spend management> product
-(list only the ones we actually agreed — there may be three, four, or five):
+Here is the problem I've been given, verbatim:
 
-1. <feature>
-2. <feature>
-3. <feature>
-<4. feature — delete this line if we agreed on fewer>
-<5. feature — delete this line if we agreed on fewer>
+"<paste the prompt exactly as it was given to you>"
 
-Constraints: 50 minutes total, this Spring Boot + H2 scaffold, solo. Working demo matters more
-than coverage. Do NOT write any code yet.
+Context: ~50 minutes total, solo, this Spring Boot + H2 scaffold. A working demo matters more
+than coverage. Do NOT write or plan any code yet.
 
-Give me, in this order and nothing else:
+First, look at the repo as it stands so you're answering about this codebase and not a generic one.
 
-1. DATA MODEL — the minimum set of entities. For each: fields with types, the owning side of every
-   relationship, and which columns get an index. Call out anything that must be a `long` minor-unit
-   amount. Flag any field you added that is not required by the features listed above, and justify
-   it in one line or drop it.
+Then give me, in this order and nothing else:
 
-2. API — one line per endpoint: METHOD /path -> status codes. Mark which are needed for the demo
-   and which are nice-to-have.
+1. WHAT I THINK THEY'RE ASKING FOR — three bullets, in plain language. If your reading could be
+   wrong, say which bullet is the shaky one.
 
-3. BUILD ORDER — every feature listed above, sequenced so that something demoable exists after
-   each one. Estimate minutes each. If the total exceeds 40, tell me which of them to cut and
-   stop there rather than compressing all of them.
+2. THE FIVE QUESTIONS WORTH ASKING — ranked by how much the answer changes what I build. For each,
+   give the one-line question I should say out loud, and what I'd do differently for each likely
+   answer. Skip anything I can safely just decide myself.
 
-4. CUT LIST — what a production version needs that we are deliberately not building today
-   (auth, ledger, reconciliation, rate limits, whatever applies). One line each, no code.
-   I will say these out loud to the interviewer, so make them specific to this domain.
+3. WHAT I'D ASSUME IF I GET NO ANSWERS — the default reading of every ambiguity, one line each.
+   These are what I'll state out loud and build against.
 
-5. THE ONE RISK — the single modeling decision most likely to be wrong, and the cheap way to
-   hedge it.
+4. WHAT IN THIS REPO ALREADY APPLIES — name the files I keep as-is, and whether the sample `task`
+   package should be deleted, renamed, or extended for this problem.
 
-Be concrete and terse. No preamble.
+Be concrete and terse. No preamble, no code.
 ```
 
-## Then, before you build
+## Then
 
-Reply with corrections and lock it in:
+Ask the interviewer the top two or three questions. Say the assumptions out loud for anything they
+wave off — *"I'll assume one user, no auth, single tenant; stop me if that's wrong."*
 
-```
-Adjust: <corrections>. Now write the entities and repositories only — no services, no controllers.
-Then stop so I can review the model.
-```
-
-Locking the schema first means every later prompt is additive. That is what makes the back half of
-the hour fast.
+Then go to [`01-scope-to-mvp.md`](01-scope-to-mvp.md).

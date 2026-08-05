@@ -1,6 +1,7 @@
-# The 50-minute AI round — runbook
+# The AI-assisted coding round — runbook
 
-Read `prompts/README.md` for the mechanics. This is the plan around them.
+Written for a ~50-minute live interview where you drive an AI agent. Read `prompts/README.md` for
+the prompts; this is the plan around them.
 
 ---
 
@@ -12,11 +13,11 @@ Two steps, in this order. Step 1 must run **online** — it is what makes step 2
 cd sandbox
 
 # 1. ONLINE, once. Populates ~/.m2 with every dependency.
-./mvnw clean test           # expect: Tests run: 25, Failures: 0, Errors: 0
+./mvnw clean test           # expect: Tests run: 13, Failures: 0, Errors: 0
 
 # 2. OFFLINE preflight. Proves ~/.m2 is complete and the interview commands will work
 #    with no network at all. If this fails, go back to step 1 — do not debug it live.
-./mvnw -o clean test        # expect: same 25, ~4s
+./mvnw -o clean test        # expect: same 13, ~4s
 ./mvnw -o spring-boot:run   # then open http://localhost:8080
 ```
 
@@ -24,14 +25,14 @@ cd sandbox
 cleared `~/.m2`, or **any `pom.xml` change** breaks it until you run online again. That's why the
 offline run is a verification step and not just a habit.
 
-- [ ] Online run done, then `./mvnw -o clean test` passes with **25 tests**
-- [ ] App boots, UI shows three seeded cards and a declined transaction
+- [ ] Online run done, then `./mvnw -o clean test` passes with **13 tests**
+- [ ] App boots and the UI lists four seeded tasks
 - [ ] `/` and `/swagger-ui.html` both load, and `/v3/api-docs` returns JSON (not a 500)
-- [ ] Claude Code open at the **repo root** so it picks up `CLAUDE.md`
+- [ ] Agent open at the **repo root** so it picks up `CLAUDE.md`
 - [ ] `prompts/00-kickoff.md` open in a tab, ready to paste
-- [ ] Swagger and H2 console `/h2-console` open in tabs
+- [ ] Swagger and the H2 console `/h2-console` open in tabs
 - [ ] Screen share rehearsed: editor, browser, terminal all visible without alt-tab hunting
-- [ ] Working from `main` on a clean tree, and you know the checkpoint habit below
+- [ ] Clean git tree, and you know the checkpoint habit below
 
 During the call, keep `-o` on every Maven command: it removes dependency-resolution latency and any
 dependence on the network holding up. Drop it for one run after editing `pom.xml`.
@@ -43,13 +44,13 @@ dependence on the network holding up. Drop it for one run after editing `pom.xml
 | Minutes | Do |
 |---|---|
 | 0–5 | **Agree the features.** Negotiate actively (below). Write them in a scratch file. |
-| 5–8 | Paste `00-kickoff.md`. Review the data model. Approve or correct it. Nothing else. |
+| 5–8 | Paste `00-kickoff.md`, then `02-data-model.md`. Approve or correct the model. No code yet. |
 | 8–12 | Entities + repositories only. Run `./mvnw -o test`. Green before continuing. |
-| 12–22 | Feature 1 vertical: service → controller → curl → UI config. **Demo it, then checkpoint.** |
+| 12–22 | Feature 1 vertical: service → controller → curl → UI. **Demo it, then checkpoint.** |
 | 22–32 | Feature 2, same loop. Checkpoint. |
 | 32–40 | Feature 3, same loop. Checkpoint. |
-| 40–45 | Tests on the rule that matters (`04-tests.md`). |
-| 45–50 | `05-endgame.md` — demo pass, README, the closing narrative. |
+| 40–45 | Tests on the rule that matters. Then `06-scope-review.md`. |
+| 45–50 | `07-endgame.md` — demo pass, README, the closing narrative. |
 
 The non-negotiable: **something demoable exists from minute 22 onward.** Never be in a state where
 nothing runs.
@@ -71,25 +72,23 @@ Nobody is grading your commit messages.
 
 ## Negotiating the feature list (minutes 0–5)
 
-This is leverage, not a formality. You are allowed to shape scope, and shaping it well is itself
-graded under Product Mindset.
+This is leverage, not a formality. Shaping scope well is itself part of what's being graded.
 
 - **Propose the vertical, not the surface.** "Rather than five endpoints, I'd do three features
   that each work end to end — data, API, and UI." That's the definition-of-done answer, delivered
   before you're asked.
-- **Steer toward what you can prove.** One creation flow, one rule that enforces something (a limit,
-  a state transition, an approval), one list/detail view with a real aggregate. That's a complete
-  product story and it's the shape this scaffold already runs.
+- **Steer toward what you can prove.** One creation flow, one rule that enforces something (a
+  limit, a state transition, an approval), one list or detail view. That's a complete product story
+  and it's the shape this scaffold already runs.
 - **Name a cut yourself, immediately.** "I'll skip auth and treat the caller as an authenticated
   admin — say if you'd rather I spend time there." Volunteering the boundary reads as judgment.
   Being caught not having thought about it reads as an oversight.
 - **Ask what "done" means to them.** "Does done here mean the API works, or that I can click
   through it?" Then build to that answer instead of guessing.
 
-If the domain is corporate cards / spend / billing, the seeded `card` + `transaction` slice is
-already the right shape — say so, keep it, and extend. If it's a different domain, delete both
-packages and let `00-kickoff.md` regenerate the model; the common layer, error handling, config UI,
-and test templates all carry over unchanged.
+Delete the sample `task/` package as soon as you know the real domain — leaving it in place while
+building something unrelated just confuses the reader. If the problem *is* a list of things with a
+status, keep it and rename.
 
 ---
 
@@ -108,7 +107,7 @@ mode this round is designed to detect. Reading it out loud is the demonstration.
 
 ## Guardrails against the biggest mistake
 
-Over-engineering is the named #1 failure. Concretely, in this round, it means:
+Over-engineering is the most common way this round is lost. Concretely:
 
 | Trap | Instead |
 |---|---|
@@ -131,7 +130,7 @@ it and move on.
 > behaviour identical."
 
 **Agent is thrashing on a bug:** stop prompting, read the stack trace yourself, then give it the
-one file and one hypothesis (`prompts/03-debug.md`).
+one file and one hypothesis (`prompts/05-debug.md`).
 
 **Nothing compiles and you're lost:** throw the experiment away and go back to your last
 checkpoint commit:
@@ -146,11 +145,28 @@ Then re-run `./mvnw -o test` to confirm you're actually green again before conti
 This only rescues you as far back as your **last commit** — which is the entire reason for the
 checkpoint habit above. `git checkout .` is not a substitute: it reverts tracked files to the
 index, so it cannot recover a green state you never committed, and it silently leaves any new
-files the agent created behind. If you have not committed since the last green state, there is
-nothing to go back to.
+files the agent created behind.
 
 Losing four minutes of work beats losing the demo.
 
 **You're behind at minute 35:** drop the third feature, announce it — *"I'd rather hand you two
 features that work than three that don't"* — and spend the time making two solid. That sentence is
 a better answer than the third feature would have been.
+
+---
+
+## Production follow-ups: discuss, don't build
+
+Have one sentence ready for each. Naming them unprompted is the signal; implementing them on the
+clock is the mistake.
+
+| Not built | What you'd say |
+|---|---|
+| AuthN/AuthZ | "Caller is treated as a trusted admin. Real version: OIDC at the edge, role checks in the service." |
+| Pagination | "List endpoints return everything. First thing I'd add at real row counts — `Pageable` in, a stable envelope out, page size capped." |
+| Idempotency on writes | "A client timeout plus a retry is a duplicate today. I'd take a client key, store it under a unique index, and replay the stored response." |
+| Optimistic locking | "Two concurrent PATCHes last-write-wins. `@Version` plus a 409 is the cheap fix." |
+| Schema migrations | "`ddl-auto: create-drop` is a demo affordance. Production is Flyway from day one." |
+| Real database | "H2 in Postgres mode. The JPA maps across; connection pooling and migrations are the delta." |
+| Observability | "One request log line today. Production wants metrics, traces, and structured logs with a correlation id." |
+| Rate limiting, caching, async | "None of it earns its complexity at this volume. Here's the number that would change my mind." |

@@ -10,8 +10,8 @@ import org.springframework.context.annotation.Configuration;
 public class AppConfig {
 
     /**
-     * Inject this instead of calling {@code Instant.now()} directly, so tests can freeze time.
-     * Timestamps on financial records are data, not a side effect.
+     * Inject this instead of calling {@code Instant.now()} directly, so a test can freeze time
+     * with {@code Clock.fixed(...)} instead of sleeping or asserting on a moving target.
      */
     @Bean
     public Clock clock() {

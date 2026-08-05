@@ -25,7 +25,7 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.BAD_REQUEST, message);
     }
 
-    /** State conflict: duplicate create, concurrent in-flight idempotent request, stale version. */
+    /** State conflict: duplicate create, illegal state transition, stale version. */
     public static ApiException conflict(String message) {
         return new ApiException(HttpStatus.CONFLICT, message);
     }

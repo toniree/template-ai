@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Corporate Cards</title>
+  <title>Task Board</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <nav class="topnav">
-    <span class="brand">Corporate Cards</span>
-    <div class="tabs" id="tabs"></div>
+    <span class="brand">Task Board</span>
     <div class="nav-links">
       <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
       <a href="/h2-console" target="_blank" rel="noopener">DB</a>
@@ -20,19 +19,31 @@
 
   <main>
     <header class="page-header">
-      <h1 id="view-title">&nbsp;</h1>
-      <p id="view-subtitle" class="subtitle"></p>
+      <h1>Tasks</h1>
+      <p class="subtitle">The sample screen. Replace it with whatever the interview actually asks for.</p>
     </header>
 
-    <div id="summary" class="summary"></div>
-
-    <section class="panel" id="form-panel" hidden></section>
+    <section class="panel">
+      <h2>New task</h2>
+      <form id="create-form" class="form-row">
+        <label>Title
+          <input type="text" name="title" maxlength="200" placeholder="Ship the first slice" required>
+        </label>
+        <label class="grow">Description
+          <input type="text" name="description" maxlength="2000" placeholder="Optional">
+        </label>
+        <button type="submit" class="btn btn-primary">Add task</button>
+      </form>
+      <p id="form-error" class="error" role="alert" hidden></p>
+    </section>
 
     <section class="panel">
       <div class="panel-header">
-        <h2 id="list-title">Records</h2>
+        <h2>All tasks</h2>
         <div class="panel-actions">
-          <div id="filters" class="filters"></div>
+          <select id="status-filter" aria-label="Filter by status">
+            <option value="">All statuses</option>
+          </select>
           <button id="refresh" type="button" class="btn btn-secondary">Refresh</button>
         </div>
       </div>
@@ -41,15 +52,18 @@
 
       <div class="table-wrap">
         <table>
-          <thead id="table-head"></thead>
-          <tbody id="table-body"></tbody>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="task-rows"></tbody>
         </table>
-      </div>
-
-      <div class="pagination" id="pagination" hidden>
-        <button id="prev-page" type="button" class="btn btn-secondary">‹ Prev</button>
-        <span id="page-info" class="page-info"></span>
-        <button id="next-page" type="button" class="btn btn-secondary">Next ›</button>
       </div>
     </section>
   </main>

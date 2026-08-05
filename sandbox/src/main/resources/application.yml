@@ -2,13 +2,11 @@ spring:
   application:
     name: sandbox
   profiles:
-    active: h2          # "postgres" to run against a real instance; "test" is used by the test suite
+    active: h2          # "test" is used by the test suite; there is no other profile
   jpa:
     # Off deliberately: entities must be mapped to DTOs inside the service transaction. Leaving it
     # on lets lazy loads fire during JSON serialization, which is how N+1 queries sneak in.
     open-in-view: false
-  jackson:
-    default-property-inclusion: non_null   # nulls (e.g. declineReason on an approval) stay out of the JSON
 
 management:
   endpoints:
@@ -25,7 +23,10 @@ logging:
     com.templateai: DEBUG
 
 ---
-# ---- h2: default. In-memory, zero setup, reseeded on every boot. --------------
+# ---- h2: the default. In-memory, seeded on boot, rebuilt on every restart. ----
+# MODE=PostgreSQL so the SQL and JPA you write here maps onto a real Postgres later without
+# rewrites. show-sql is on: it is the only way to confirm the query you think you wrote is the
+# query that ran.
 spring:
   config:
     activate:
@@ -66,23 +67,3 @@ logging:
   level:
     com.templateai: INFO
     org.hibernate: WARN
-
----
-# ---- postgres: docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres \
-#                  -e POSTGRES_DB=sandbox postgres:16
-spring:
-  config:
-    activate:
-      on-profile: postgres
-  datasource:
-    url: jdbc:postgresql://localhost:5432/sandbox
-    driver-class-name: org.postgresql.Driver
-    username: postgres
-    password: postgres
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true

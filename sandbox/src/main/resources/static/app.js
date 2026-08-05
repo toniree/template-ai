@@ -1,145 +1,46 @@
 /*
- * Config-driven admin UI. Everything below the RESOURCES block is generic: to add a screen for a
- * new endpoint you add one entry here and change nothing else.
+ * The whole UI: one screen over one REST resource, written directly against the DOM.
  *
- *   label      tab text
- *   path       API base path
- *   paged      true if the endpoint returns { content, page, size, totalElements, totalPages }
- *   columns    [{ key, label, render? }]
- *   form       { title, submit, fields: [...] } — omit for a read-only screen
- *   filters    [{ name, label, from }] — sent as query params
- *   onCreated  (row) => ({ text, type }) toast, for when "created" isn't the same as "succeeded"
- *   idempotent true if POST moves money — sends a per-submission Idempotency-Key header
+ * Deliberately not a config-driven renderer. At one or two screens the indirection costs more than
+ * it saves, and widening a generic renderer to fit an unlike screen (a dashboard, a wizard, a
+ * detail view) is the most expensive mistake you can make mid-interview. If you need a second
+ * screen, copy the parts you need; if you need a different kind of screen, write it separately.
  *
- * This covers list/create/table screens. A dashboard, wizard, map or detail workflow should be
- * the smallest bespoke HTML/JS instead — do not widen the renderer below to absorb one.
+ * Retargeting this to a new resource: change API, STATUSES/STATUS_LABELS, the <thead> in
+ * index.html, and the cells in taskRow(). Everything else is domain-free.
  */
 
-const RESOURCES = {
-  cards: {
-    label: "Cards",
-    path: "/api/cards",
-    title: "Cards",
-    subtitle: "Issue cards, set spend limits, freeze anything that looks wrong.",
-    columns: [
-      { key: "id", label: "ID" },
-      { key: "cardholderName", label: "Cardholder" },
-      { key: "last4", label: "Card", render: (v) => `<span class="mono">•••• ${v}</span>` },
-      { key: "status", label: "Status", render: (v) => pill(v) },
-      { key: "spendLimitMinor", label: "Limit", render: (v, r) => money(v, r.currency), align: "right" },
-      { key: "spentMinor", label: "Spent", render: (v, r) => money(v, r.currency), align: "right" },
-      {
-        key: "availableMinor",
-        label: "Available",
-        align: "right",
-        render: (v, r) => `<strong class="${v <= 0 ? "negative" : ""}">${money(v, r.currency)}</strong>`,
-      },
-    ],
-    summary: (rows) => {
-      // Totals are only meaningful within one currency. This starter is USD-only; if mixed data
-      // ever shows up (via curl or Swagger), show nothing rather than a confidently wrong number.
-      const currency = soleCurrency(rows);
-      const total = (key) => (currency ? money(sum(rows, key), currency) : "—");
-      return [
-        { label: "Active cards", value: rows.filter((r) => r.status === "ACTIVE").length },
-        { label: "Total limit", value: total("spendLimitMinor") },
-        { label: "Total spent", value: total("spentMinor") },
-      ];
-    },
-    form: {
-      title: "Issue a card",
-      submit: "Issue card",
-      fields: [
-        { name: "cardholderName", label: "Cardholder", type: "text", required: true, placeholder: "Ada Lovelace" },
-        { name: "last4", label: "Last 4", type: "text", required: true, placeholder: "4242", maxlength: 4 },
-        { name: "spendLimitMinor", label: "Spend limit", type: "money", required: true, value: "1000" },
-        // USD-only starter: totals across currencies are meaningless without an FX rate, and
-        // building that is not worth it until a problem actually asks for it.
-        { name: "currency", label: "Currency", type: "select", options: ["USD"] },
-      ],
-    },
-    rowActions: [
-      {
-        label: (r) => (r.status === "FROZEN" ? "Unfreeze" : "Freeze"),
-        hidden: (r) => r.status === "CANCELLED",
-        // Status only — PATCH leaves omitted fields alone, so there's no need to read the current
-        // limit and send it back (which would race with anyone else editing it).
-        run: (r) =>
-          request(`/api/cards/${r.id}`, {
-            method: "PATCH",
-            body: { status: r.status === "FROZEN" ? "ACTIVE" : "FROZEN" },
-          }),
-      },
-    ],
-  },
+const API = "/api/tasks";
+const STATUSES = ["TODO", "IN_PROGRESS", "DONE"];
+const STATUS_LABELS = { TODO: "To do", IN_PROGRESS: "In progress", DONE: "Done" };
 
-  transactions: {
-    label: "Transactions",
-    path: "/api/transactions",
-    title: "Transactions",
-    subtitle: "Every authorization attempt, approved or declined.",
-    paged: true,
-    // Money-moving POST: send an Idempotency-Key so a retried submission can't double-charge.
-    idempotent: true,
-    columns: [
-      { key: "id", label: "ID" },
-      { key: "cardId", label: "Card" },
-      { key: "merchant", label: "Merchant" },
-      { key: "amountMinor", label: "Amount", render: (v, r) => money(v, r.currency), align: "right" },
-      { key: "status", label: "Status", render: (v) => pill(v) },
-      { key: "declineReason", label: "Reason", render: (v) => (v ? `<span class="muted">${v}</span>` : "—") },
-      { key: "createdAt", label: "When", render: (v) => timestamp(v) },
-    ],
-    filters: [{ name: "cardId", label: "Card", from: "cards", optionLabel: (c) => `#${c.id} ${c.cardholderName}` }],
-    form: {
-      title: "Authorize a spend",
-      submit: "Authorize",
-      fields: [
-        { name: "cardId", label: "Card", type: "select", from: "cards", optionLabel: (c) => `#${c.id} ${c.cardholderName} •••• ${c.last4}`, cast: Number },
-        { name: "merchant", label: "Merchant", type: "text", required: true, placeholder: "AWS" },
-        { name: "amountMinor", label: "Amount", type: "money", required: true, value: "25" },
-        // USD-only starter: totals across currencies are meaningless without an FX rate, and
-        // building that is not worth it until a problem actually asks for it.
-        { name: "currency", label: "Currency", type: "select", options: ["USD"] },
-      ],
-    },
-    // A declined charge is a successful API call with an unhappy answer. Say so.
-    onCreated: (row) =>
-      row.status === "DECLINED"
-        ? { text: `Declined: ${row.declineReason}`, type: "error" }
-        : { text: `Approved ${money(row.amountMinor, row.currency)} at ${row.merchant}`, type: "success" },
-  },
-};
+const el = (id) => document.getElementById(id);
 
-// ---- formatting -----------------------------------------------------------
+let tasks = [];
 
-const money = (minor, currency = "USD") =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency }).format((minor ?? 0) / 100);
-
-const timestamp = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—");
-
-const pill = (value) => `<span class="pill pill-${String(value).toLowerCase()}">${escapeHtml(value)}</span>`;
-
-const sum = (rows, key) => rows.reduce((total, row) => total + (row[key] ?? 0), 0);
-
-/** The currency shared by every row, or null if they disagree — never guess from row[0]. */
-const soleCurrency = (rows) => {
-  const codes = new Set(rows.map((r) => r.currency));
-  return codes.size === 1 ? [...codes][0] : null;
-};
+// ---- helpers --------------------------------------------------------------
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
 
-// ---- API ------------------------------------------------------------------
+const timestamp = (iso) =>
+  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
 
-/** Every failure funnels through here so the backend's ApiError shape is parsed in one place. */
-async function request(path, { method = "GET", body, headers } = {}) {
+function toast(text, type = "success") {
+  const node = document.createElement("div");
+  node.className = `toast toast-${type}`;
+  node.textContent = text;
+  el("toasts").appendChild(node);
+  setTimeout(() => node.remove(), 4000);
+}
+
+/** Every call goes through here, so the backend's ApiError shape is parsed in exactly one place. */
+async function request(path, { method = "GET", body } = {}) {
   const response = await fetch(path, {
     method,
-    headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...headers },
+    headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -156,289 +57,113 @@ async function request(path, { method = "GET", body, headers } = {}) {
   return response.status === 204 ? null : response.json();
 }
 
-// ---- state ----------------------------------------------------------------
-
-const el = (id) => document.getElementById(id);
-let active = location.hash.slice(1) in RESOURCES ? location.hash.slice(1) : "cards";
-let rows = [];
-let pageMeta = { page: 0, totalPages: 1, totalElements: 0 };
-let filters = {};
-
-/** In-flight/unresolved money-moving submission: { key, fingerprint }. See idempotencyKeyFor. */
-let pendingSubmit = null;
-
-/**
- * A lost response is ambiguous: the charge may well have posted. So the user's retry has to carry
- * the SAME Idempotency-Key, or the backend records a second authorization and double-charges.
- * Hold the key until a definitive response arrives, and only mint a new one when the payload
- * itself changes — which is what distinguishes "retry that failed charge" from "charge again".
- *
- * Note there's no expiry here. Worst case a much later identical submission replays the original
- * instead of creating a new charge — the safe direction to fail in. Real systems age keys out
- * (Stripe: 24h); that's on the deliberate cut list in the README.
- */
-function idempotencyKeyFor(fingerprint) {
-  if (!pendingSubmit || pendingSubmit.fingerprint !== fingerprint) {
-    pendingSubmit = { key: crypto.randomUUID(), fingerprint };
-  }
-  return pendingSubmit.key;
-}
-
-/**
- * Release a key only if it is still the one being tracked. Guards two ways of losing an
- * unresolved key: a successful submission on some *other* form (issuing a card must not discard
- * a pending authorization's key), and two submissions resolving out of order.
- */
-function releaseIdempotencyKey(key) {
-  if (key && pendingSubmit?.key === key) {
-    pendingSubmit = null;
-  }
-}
-
 // ---- rendering ------------------------------------------------------------
 
-function renderTabs() {
-  el("tabs").innerHTML = Object.entries(RESOURCES)
-    .map(([key, r]) => `<button class="tab ${key === active ? "active" : ""}" data-key="${key}">${r.label}</button>`)
-    .join("");
-  el("tabs").querySelectorAll(".tab").forEach((tab) =>
-    tab.addEventListener("click", () => select(tab.dataset.key)));
-}
-
-function renderSummary(config) {
-  const container = el("summary");
-  if (!config.summary || !rows.length) {
-    container.innerHTML = "";
+function render() {
+  const body = el("task-rows");
+  if (!tasks.length) {
+    body.innerHTML = `<tr><td colspan="6" class="empty">No tasks yet</td></tr>`;
     return;
   }
-  container.innerHTML = config.summary(rows)
-    .map((s) => `<div class="stat"><span class="stat-label">${s.label}</span><span class="stat-value">${s.value}</span></div>`)
-    .join("");
+  body.replaceChildren(...tasks.map(taskRow));
 }
 
-async function renderForm(config) {
-  const panel = el("form-panel");
-  if (!config.form) {
-    panel.hidden = true;
-    return;
-  }
-  panel.hidden = false;
+function taskRow(task) {
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${task.id}</td>
+    <td>${escapeHtml(task.title)}</td>
+    <td class="muted">${task.description ? escapeHtml(task.description) : "—"}</td>
+    <td>
+      <select class="status" data-status="${task.status}" aria-label="Status">
+        ${STATUSES.map((s) =>
+          `<option value="${s}" ${s === task.status ? "selected" : ""}>${STATUS_LABELS[s]}</option>`).join("")}
+      </select>
+    </td>
+    <td class="muted">${timestamp(task.updatedAt)}</td>
+    <td class="row-actions"><button type="button" class="btn btn-secondary btn-small">Delete</button></td>`;
 
-  const fields = await Promise.all(config.form.fields.map(async (field) => {
-    const input = await renderField(field);
-    return `<label>${field.label}${input}</label>`;
-  }));
+  const status = tr.querySelector("select");
+  status.addEventListener("change", () =>
+    act(status, () => request(`${API}/${task.id}`, { method: "PATCH", body: { status: status.value } }),
+      "Status updated"));
 
-  panel.innerHTML = `
-    <h2>${config.form.title}</h2>
-    <form id="create-form" class="form-row">
-      ${fields.join("")}
-      <button type="submit" class="btn btn-primary">${config.form.submit}</button>
-    </form>
-    <p id="form-error" class="error" role="alert" hidden></p>`;
+  const remove = tr.querySelector("button");
+  remove.addEventListener("click", () =>
+    act(remove, () => request(`${API}/${task.id}`, { method: "DELETE" }), "Task deleted"));
 
-  el("create-form").addEventListener("submit", (event) => submitForm(event, config));
+  return tr;
 }
 
-async function renderField(field) {
-  const required = field.required ? "required" : "";
-  if (field.type === "select") {
-    const options = field.from
-      ? (await request(RESOURCES[field.from].path)).map((row) => ({ value: row.id, label: field.optionLabel(row) }))
-      : field.options.map((value) => ({ value, label: value }));
-    return `<select name="${field.name}">${options
-      .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join("")}</select>`;
-  }
-  if (field.type === "money") {
-    // Typed in dollars, sent in cents. The API only ever speaks minor units.
-    return `<input type="number" name="${field.name}" step="0.01" min="0" value="${field.value ?? ""}" ${required}>`;
-  }
-  return `<input type="${field.type}" name="${field.name}" placeholder="${field.placeholder ?? ""}"
-            ${field.maxlength ? `maxlength="${field.maxlength}"` : ""} value="${field.value ?? ""}" ${required}>`;
-}
-
-function renderTable(config) {
-  el("table-head").innerHTML = `<tr>${config.columns
-    .map((c) => `<th class="${c.align === "right" ? "right" : ""}">${c.label}</th>`).join("")
-    }${config.rowActions ? "<th></th>" : ""}</tr>`;
-
-  const body = el("table-body");
-  const span = config.columns.length + (config.rowActions ? 1 : 0);
-  if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="${span}" class="empty">Nothing here yet</td></tr>`;
-    return;
-  }
-
-  body.replaceChildren(...rows.map((row) => {
-    const tr = document.createElement("tr");
-    const cells = config.columns.map((c) => {
-      const raw = row[c.key];
-      const content = c.render ? c.render(raw, row) : escapeHtml(raw ?? "—");
-      return `<td class="${c.align === "right" ? "right" : ""}">${content}</td>`;
-    });
-
-    if (config.rowActions) {
-      // Index against the original array, not the filtered one, so hiding an action
-      // doesn't shift what the remaining buttons point at.
-      const buttons = config.rowActions
-        .map((action, index) => ({ action, index }))
-        .filter(({ action }) => !action.hidden?.(row))
-        .map(({ action, index }) =>
-          `<button class="btn btn-secondary btn-small" data-action="${index}">${action.label(row)}</button>`);
-      cells.push(`<td class="row-actions">${buttons.join("")}</td>`);
-    }
-    tr.innerHTML = cells.join("");
-
-    tr.querySelectorAll("[data-action]").forEach((button) => {
-      button.addEventListener("click", async () => {
-        button.disabled = true;
-        try {
-          await config.rowActions[Number(button.dataset.action)].run(row);
-          await load();
-          toast("Updated");
-        } catch (err) {
-          toast(err.message, "error");
-          button.disabled = false;
-        }
-      });
-    });
-    return tr;
-  }));
-}
-
-function renderPagination(config) {
-  const bar = el("pagination");
-  bar.hidden = !config.paged;
-  if (!config.paged) return;
-
-  el("page-info").textContent =
-    `Page ${pageMeta.page + 1} of ${Math.max(pageMeta.totalPages, 1)} · ${pageMeta.totalElements} total`;
-  el("prev-page").disabled = pageMeta.page <= 0;
-  el("next-page").disabled = pageMeta.page >= pageMeta.totalPages - 1;
-}
-
-async function renderFilters(config) {
-  const container = el("filters");
-  container.innerHTML = "";
-  for (const filter of config.filters ?? []) {
-    const options = await request(RESOURCES[filter.from].path);
-    const select = document.createElement("select");
-    select.innerHTML = `<option value="">All ${filter.label.toLowerCase()}s</option>` +
-      options.map((o) => `<option value="${o.id}">${escapeHtml(filter.optionLabel(o))}</option>`).join("");
-    select.value = filters[filter.name] ?? "";
-    select.addEventListener("change", () => {
-      filters[filter.name] = select.value;
-      pageMeta.page = 0;
-      load();
-    });
-    container.appendChild(select);
+/**
+ * Runs a row action with the control disabled for the duration, so an impatient double-click is
+ * one request rather than two. Reloads either way — on failure that resyncs the row back to what
+ * the server actually holds, instead of leaving the select showing a change that never landed.
+ */
+async function act(control, run, message) {
+  control.disabled = true;
+  try {
+    await run();
+    toast(message);
+  } catch (err) {
+    toast(err.message, "error");
+  } finally {
+    await load();
   }
 }
 
 // ---- actions --------------------------------------------------------------
 
-async function submitForm(event, config) {
-  event.preventDefault();
-  const error = el("form-error");
-  error.hidden = true;
-
-  // An impatient double-click on a money-moving form is two charges. Hold the button down for
-  // the duration of the request; re-enable in `finally` so a failure doesn't strand the form.
-  const submitButton = event.target.querySelector('button[type="submit"]');
-  submitButton.disabled = true;
-
-  const data = new FormData(event.target);
-  const payload = {};
-  for (const field of config.form.fields) {
-    const raw = data.get(field.name);
-    if (field.type === "money") payload[field.name] = Math.round(Number(raw) * 100);
-    else if (field.cast) payload[field.name] = field.cast(raw);
-    else payload[field.name] = raw;
-  }
-
-  // crypto.randomUUID needs a secure context — fine on localhost, which is how this runs.
-  const idempotencyKey = config.idempotent ? idempotencyKeyFor(JSON.stringify(payload)) : null;
-  const headers = idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined;
-
-  try {
-    const created = await request(config.path, { method: "POST", body: payload, headers });
-    // Definitive answer for *this* submission: release its key, and only its key. Done before
-    // load() so a refresh failure can't leave the key stuck.
-    releaseIdempotencyKey(idempotencyKey);
-    const result = config.onCreated?.(created) ?? { text: "Created", type: "success" };
-    toast(result.text, result.type);
-    await load();
-  } catch (err) {
-    // pendingSubmit is deliberately NOT cleared here: this may have been an ambiguous failure
-    // where the server did post the charge, so a retry must reuse the same key.
-    error.textContent = err.message;
-    error.hidden = false;
-  } finally {
-    submitButton.disabled = false;
-  }
-}
-
 async function load() {
-  const config = RESOURCES[active];
+  const status = el("status-filter").value;
   const error = el("list-error");
   error.hidden = true;
 
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => v && params.set(k, v));
-  if (config.paged) params.set("page", pageMeta.page);
-
   try {
-    const data = await request(`${config.path}${params.toString() ? `?${params}` : ""}`);
-    if (config.paged) {
-      rows = data.content;
-      pageMeta = { page: data.page, totalPages: data.totalPages, totalElements: data.totalElements };
-    } else {
-      rows = data;
-    }
+    tasks = await request(status ? `${API}?status=${status}` : API);
   } catch (err) {
-    rows = [];
+    tasks = [];
     error.textContent = err.message;
     error.hidden = false;
   }
-
-  renderSummary(config);
-  renderTable(config);
-  renderPagination(config);
+  render();
 }
 
-async function select(key) {
-  active = key;
-  location.hash = key;
-  filters = {};
-  pageMeta = { page: 0, totalPages: 1, totalElements: 0 };
+async function create(event) {
+  event.preventDefault();
+  const form = event.target;
+  const button = form.querySelector('button[type="submit"]');
+  const error = el("form-error");
+  error.hidden = true;
 
-  const config = RESOURCES[key];
-  el("view-title").textContent = config.title;
-  el("view-subtitle").textContent = config.subtitle ?? "";
-  el("list-title").textContent = `All ${config.label.toLowerCase()}`;
+  // A double-click is two POSTs and two tasks. Hold the button down until the call resolves, and
+  // re-enable in `finally` so a validation failure doesn't strand the form.
+  button.disabled = true;
+  const data = new FormData(form);
 
-  renderTabs();
-  await renderFilters(config);
-  await renderForm(config);
-  await load();
-}
-
-function toast(text, type = "success") {
-  const node = document.createElement("div");
-  node.className = `toast toast-${type}`;
-  node.textContent = text;
-  el("toasts").appendChild(node);
-  setTimeout(() => node.remove(), 4000);
+  try {
+    await request(API, {
+      method: "POST",
+      body: { title: data.get("title"), description: data.get("description") || null },
+    });
+    form.reset();
+    toast("Task created");
+    await load();
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 // ---- wiring ---------------------------------------------------------------
 
-el("refresh").addEventListener("click", load);
-el("prev-page").addEventListener("click", () => { pageMeta.page -= 1; load(); });
-el("next-page").addEventListener("click", () => { pageMeta.page += 1; load(); });
-window.addEventListener("hashchange", () => {
-  const key = location.hash.slice(1);
-  if (key in RESOURCES && key !== active) select(key);
-});
+el("status-filter").insertAdjacentHTML("beforeend",
+  STATUSES.map((s) => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join(""));
 
-select(active);
+el("create-form").addEventListener("submit", create);
+el("status-filter").addEventListener("change", load);
+el("refresh").addEventListener("click", load);
+
+load();
