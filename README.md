@@ -8,9 +8,16 @@ for the 100 minutes.
 
 ```bash
 cd sandbox
+./mvnw clean test             # ONCE, online — populates ~/.m2 (see below). 25 tests, ~4s
 ./mvnw -o spring-boot:run     # http://localhost:8080 — seeded and clickable
-./mvnw -o test                # 11 tests, ~10s
+./mvnw -o test                # 25 tests, ~3s
 ```
+
+**Run Maven online at least once before relying on `-o`.** The `-o` (offline) flag doesn't
+download anything — it only works once every dependency is already in `~/.m2`. On a fresh machine,
+or after any `pom.xml` change, `-o` fails with unresolvable artifacts. Do the online run as part of
+your pre-flight, not at 9:59 on interview morning; see
+[`docs/RUNBOOK.md`](docs/RUNBOOK.md) for the full checklist.
 
 ## Start here
 
@@ -80,6 +87,19 @@ rm -rf sandbox/src/main/java/com/templateai/sandbox/{card,transaction} \
 
 Then run `prompts/00-kickoff.md`. Everything in `common/`, the error contract, the config-driven
 UI, and the test templates carry over unchanged.
+
+## Handing this off as an archive
+
+Build it from git, not by zipping the working tree — `git archive` ships only tracked files, so
+`target/`, `.idea/`, `__MACOSX/`, and `.DS_Store` cannot leak in:
+
+```bash
+git archive --format=zip --prefix=template-ai/ -o /tmp/template-ai.zip HEAD
+unzip -l /tmp/template-ai.zip | grep -E 'target/|\.idea/|__MACOSX|\.DS_Store' || echo "clean"
+```
+
+macOS Finder's "Compress" adds a `__MACOSX/` sidecar and resource-fork `._*` files; both are
+gitignored here, but the Finder path adds them at zip time regardless. Use the command above.
 
 ## Profiles
 

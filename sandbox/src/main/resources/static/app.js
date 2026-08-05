@@ -31,11 +31,17 @@ const RESOURCES = {
         render: (v, r) => `<strong class="${v <= 0 ? "negative" : ""}">${money(v, r.currency)}</strong>`,
       },
     ],
-    summary: (rows) => [
-      { label: "Active cards", value: rows.filter((r) => r.status === "ACTIVE").length },
-      { label: "Total limit", value: money(sum(rows, "spendLimitMinor"), currencyOf(rows)) },
-      { label: "Total spent", value: money(sum(rows, "spentMinor"), currencyOf(rows)) },
-    ],
+    summary: (rows) => {
+      // Totals are only meaningful within one currency. This starter is USD-only; if mixed data
+      // ever shows up (via curl or Swagger), show nothing rather than a confidently wrong number.
+      const currency = soleCurrency(rows);
+      const total = (key) => (currency ? money(sum(rows, key), currency) : "—");
+      return [
+        { label: "Active cards", value: rows.filter((r) => r.status === "ACTIVE").length },
+        { label: "Total limit", value: total("spendLimitMinor") },
+        { label: "Total spent", value: total("spentMinor") },
+      ];
+    },
     form: {
       title: "Issue a card",
       submit: "Issue card",
@@ -43,7 +49,9 @@ const RESOURCES = {
         { name: "cardholderName", label: "Cardholder", type: "text", required: true, placeholder: "Ada Lovelace" },
         { name: "last4", label: "Last 4", type: "text", required: true, placeholder: "4242", maxlength: 4 },
         { name: "spendLimitMinor", label: "Spend limit", type: "money", required: true, value: "1000" },
-        { name: "currency", label: "Currency", type: "select", options: ["USD", "EUR", "GBP"] },
+        // USD-only starter: totals across currencies are meaningless without an FX rate, and
+        // building that is not worth it until a problem actually asks for it.
+        { name: "currency", label: "Currency", type: "select", options: ["USD"] },
       ],
     },
     rowActions: [
@@ -84,7 +92,9 @@ const RESOURCES = {
         { name: "cardId", label: "Card", type: "select", from: "cards", optionLabel: (c) => `#${c.id} ${c.cardholderName} •••• ${c.last4}`, cast: Number },
         { name: "merchant", label: "Merchant", type: "text", required: true, placeholder: "AWS" },
         { name: "amountMinor", label: "Amount", type: "money", required: true, value: "25" },
-        { name: "currency", label: "Currency", type: "select", options: ["USD", "EUR", "GBP"] },
+        // USD-only starter: totals across currencies are meaningless without an FX rate, and
+        // building that is not worth it until a problem actually asks for it.
+        { name: "currency", label: "Currency", type: "select", options: ["USD"] },
       ],
     },
     // A declined charge is a successful API call with an unhappy answer. Say so.
@@ -106,7 +116,11 @@ const pill = (value) => `<span class="pill pill-${String(value).toLowerCase()}">
 
 const sum = (rows, key) => rows.reduce((total, row) => total + (row[key] ?? 0), 0);
 
-const currencyOf = (rows) => rows[0]?.currency ?? "USD";
+/** The currency shared by every row, or null if they disagree — never guess from row[0]. */
+const soleCurrency = (rows) => {
+  const codes = new Set(rows.map((r) => r.currency));
+  return codes.size === 1 ? [...codes][0] : null;
+};
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) =>

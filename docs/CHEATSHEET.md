@@ -145,10 +145,11 @@ ALTER TABLE cards ADD COLUMN nickname VARCHAR(64);
 - **A catch-all `@ExceptionHandler(Exception.class)`** intercepts Spring MVC's own exceptions, so
   bad path variables, bad query params, unknown routes, and wrong verbs all become 500 instead of
   400/404/405. Extend `ResponseEntityExceptionHandler` and override only what you want to reshape.
-- **`@Lock` silently doing nothing** — it applies on a *derived* query method
-  (`findWithLockById`); pair it with an explicit `@Query` and Spring Data emits plain SQL with no
-  `for update`, no warning, no error. Any read-modify-write rule you "protected" that way is still
-  racing. Confirm with `show-sql: true` and grep the SQL.
+- **`@Lock` silently doing nothing** — on this stack, `@Lock` on the derived `findWithLockById`
+  emitted `for update`, but the same annotation on an explicit `@Query` did not, with no warning or
+  error. Treat that as "verify, don't assume" rather than a universal rule: whenever a lock is
+  load-bearing, set `show-sql: true` and confirm `for update` is actually in the generated SQL.
+  A read-modify-write you believe is protected but isn't will still race.
 - **A green concurrency test that proves nothing** — always check it *fails* when you remove the
   fix. Thread timing makes false passes common, especially inside a larger suite.
 - **Tests interfering** — the suite shares one H2 database. Assert on rows you created, never on

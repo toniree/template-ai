@@ -98,6 +98,48 @@ class CardApiIT {
                 .andExpect(jsonPath("$.details[0]", is("spendLimitMinor must not be null")));
     }
 
+    /** ACTIVE <-> FROZEN both ways, either to CANCELLED, and CANCELLED is the end. */
+    @Test
+    void cancellationIsTerminal() throws Exception {
+        String location = createCard();
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"CANCELLED"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("CANCELLED")));
+
+        // Cannot be revived...
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"ACTIVE"}"""))
+                .andExpect(status().isConflict());
+
+        // ...and its limit is frozen too, not just its status.
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"spendLimitMinor":999}"""))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(get(location)).andExpect(jsonPath("$.spendLimitMinor", is(250_000)));
+    }
+
+    @Test
+    void aFrozenCardCanBeReactivated() throws Exception {
+        String location = createCard();
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"FROZEN"}"""))
+                .andExpect(jsonPath("$.status", is("FROZEN")));
+
+        mockMvc.perform(patch(location).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status":"ACTIVE"}"""))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("ACTIVE")));
+    }
+
     @Test
     void rejectsAnInvalidPayloadWithFieldDetails() throws Exception {
         mockMvc.perform(post("/api/cards")

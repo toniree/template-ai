@@ -70,16 +70,35 @@ public class CardService {
      */
     public CardResponse update(Long id, UpdateCardRequest request) {
         Card card = require(id);
+
+        // Terminal means terminal: not the status, not the limit, nothing.
         if (card.getStatus() == Card.Status.CANCELLED) {
-            throw ApiException.conflict("Card " + id + " is cancelled and can no longer be modified");
+            throw ApiException.conflict("Card " + id + " is cancelled; cancellation is terminal");
         }
-        if (request.status() != null) {
+        if (request.status() != null && request.status() != card.getStatus()) {
+            requireLegalTransition(card.getStatus(), request.status());
             card.setStatus(request.status());
         }
         if (request.spendLimitMinor() != null) {
             card.setSpendLimitMinor(request.spendLimitMinor());
         }
         return CardResponse.from(card, spent(id));
+    }
+
+    /**
+     * The whole lifecycle, in one place: ACTIVE and FROZEN convert into each other, either can be
+     * CANCELLED, and CANCELLED is the end. Written as an exhaustive switch so adding a status is a
+     * compile error here rather than a silently-permitted transition.
+     */
+    private void requireLegalTransition(Card.Status from, Card.Status to) {
+        boolean legal = switch (from) {
+            case ACTIVE -> to == Card.Status.FROZEN || to == Card.Status.CANCELLED;
+            case FROZEN -> to == Card.Status.ACTIVE || to == Card.Status.CANCELLED;
+            case CANCELLED -> false;
+        };
+        if (!legal) {
+            throw ApiException.conflict("Card cannot move from %s to %s".formatted(from, to));
+        }
     }
 
     /** Shared 404 so every "unknown card" path returns the identical error body. */
