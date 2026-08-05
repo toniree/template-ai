@@ -132,12 +132,15 @@ at the first one that fits:
 // a violation surfaces as DataIntegrityViolationException -> 409, already handled
 
 // 2. An atomic conditional write — one round trip, no lock. 0 rows affected means "rejected".
+//    Note the predicate: `:n <= a.cap - a.used`, NOT `a.used + :n <= a.cap`. The second one
+//    overflows for a large enough :n, wraps negative, passes the check, and stores garbage.
 @Modifying
-@Query("update Account a set a.used = a.used + :n where a.id = :id and a.used + :n <= a.cap")
+@Query("update Account a set a.used = a.used + :n where a.id = :id and :n <= a.cap - a.used")
 int consume(@Param("id") Long id, @Param("n") long n);
 
 // 3. Optimistic locking — conflicts are rare, the loser retries or gets a 409.
-@Version private long version;   // on the entity; throws OptimisticLockingFailureException
+@Version private long version;   // on the entity; the collision raises
+                                 // OptimisticLockingFailureException -> 409, already handled
 
 // 4. Pessimistic locking — real contention, and a retry loop would be worse. Costs you
 //    serialized access to that row for the rest of the transaction.

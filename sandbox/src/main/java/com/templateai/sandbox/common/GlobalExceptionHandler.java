@@ -7,6 +7,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -57,6 +58,25 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Constraint violation: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT, "Request conflicts with existing data", List.of()));
+    }
+
+    /**
+     * An optimistic-lock conflict: someone else updated the row between this transaction's read and
+     * its write, and {@code @Version} caught it. That's a 409 for the same reason a constraint
+     * violation is — the caller's view was stale, and re-reading and retrying is the fix.
+     *
+     * <p>Nothing in the sample domain declares {@code @Version}, so nothing throws this yet. It is
+     * here so that adding {@code @Version} to an entity gives you the documented 409 immediately,
+     * rather than a 500 from the catch-all below — which would tell the caller "our fault" about a
+     * conflict that is retryable. Spring translates JPA's {@code OptimisticLockException} into this
+     * type for repository operations, so handling the Spring exception covers both.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleOptimisticLock(OptimisticLockingFailureException ex) {
+        log.warn("Optimistic lock conflict: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body(HttpStatus.CONFLICT, "Resource was modified by another request; re-read and retry",
+                        List.of()));
     }
 
     /** Genuinely unexpected. Log the stack, never leak it to the caller. */
