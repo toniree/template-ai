@@ -184,6 +184,17 @@ function idempotencyKeyFor(fingerprint) {
   return pendingSubmit.key;
 }
 
+/**
+ * Release a key only if it is still the one being tracked. Guards two ways of losing an
+ * unresolved key: a successful submission on some *other* form (issuing a card must not discard
+ * a pending authorization's key), and two submissions resolving out of order.
+ */
+function releaseIdempotencyKey(key) {
+  if (key && pendingSubmit?.key === key) {
+    pendingSubmit = null;
+  }
+}
+
 // ---- rendering ------------------------------------------------------------
 
 function renderTabs() {
@@ -346,15 +357,14 @@ async function submitForm(event, config) {
   }
 
   // crypto.randomUUID needs a secure context — fine on localhost, which is how this runs.
-  const headers = config.idempotent
-    ? { "Idempotency-Key": idempotencyKeyFor(JSON.stringify(payload)) }
-    : undefined;
+  const idempotencyKey = config.idempotent ? idempotencyKeyFor(JSON.stringify(payload)) : null;
+  const headers = idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined;
 
   try {
     const created = await request(config.path, { method: "POST", body: payload, headers });
-    // Definitive answer received: release the key so the next submission is a new charge.
-    // Cleared before load() so a refresh failure can't leave the key stuck.
-    pendingSubmit = null;
+    // Definitive answer for *this* submission: release its key, and only its key. Done before
+    // load() so a refresh failure can't leave the key stuck.
+    releaseIdempotencyKey(idempotencyKey);
     const result = config.onCreated?.(created) ?? { text: "Created", type: "success" };
     toast(result.text, result.type);
     await load();
