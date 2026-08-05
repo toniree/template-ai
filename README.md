@@ -8,9 +8,9 @@ goes into the problem you were actually given, not into scaffolding.
 
 ```bash
 cd sandbox
-./mvnw clean test             # ONCE, online — populates ~/.m2 (see below). 13 tests, ~4s
+./mvnw clean test             # ONCE, online — populates ~/.m2 (see below)
 ./mvnw -o spring-boot:run     # http://localhost:8080 — seeded and clickable
-./mvnw -o test                # 13 tests, ~3s
+./mvnw -o test                # whole suite
 ```
 
 **Run Maven online at least once before relying on `-o`.** The `-o` (offline) flag doesn't
@@ -22,9 +22,10 @@ your pre-flight, not on interview morning; [`docs/RUNBOOK.md`](docs/RUNBOOK.md) 
 
 | | |
 |---|---|
+| [`prompts/QUICK.md`](prompts/QUICK.md) | Four prompts covering the whole interview. Keep this one open. |
 | [`CLAUDE.md`](CLAUDE.md) | The working agreement the agent reads every session. Read it once yourself. |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Pre-flight, minute-by-minute plan, checkpoints, recovery moves. |
-| [`prompts/`](prompts/README.md) | Eight copy-paste prompts, ordered by when you use them. |
+| [`prompts/`](prompts/README.md) | The long-form prompts, for when a step needs more structure. |
 | [`docs/CHEATSHEET.md`](docs/CHEATSHEET.md) | Spring/JPA/HTTP reference and the gotchas that cost minutes. |
 
 ## What's already built
@@ -74,22 +75,38 @@ sandbox/
   src/test/…         TaskApiIT (copy this for new features), ErrorContractIT (keep as-is)
 ```
 
-One flat package per feature, five files, no `impl/` or `mapper/` layers. Copy the shape.
+One flat package per feature, no `impl/` or `mapper/` layers. Five files is the default shape for a
+persisted CRUD resource — drop any layer that has nothing to do, and add a concrete collaborator
+class if the problem genuinely needs one. See [`CLAUDE.md`](CLAUDE.md) for what stays banned.
 
 ## Replacing the sample domain
+
+**If the real problem has the same basic shape** — a persisted resource with a status you list,
+create, and update — don't delete anything. Rename `task/` to the real name and adapt the fields.
+You keep a working app the entire time, which is the whole point.
+
+**If it's a different shape**, keep `task/` as a working reference while you build. Delete it only
+once all three of these are green:
+
+1. the first real vertical slice works end to end (endpoint responds, one test passes),
+2. `static/app.js` and `index.html` point at the new resource,
+3. `ErrorContractIT`'s paths are repointed at a real endpoint and it still passes.
+
+Then, and only then:
 
 ```bash
 git rm -r sandbox/src/main/java/com/templateai/sandbox/task \
           sandbox/src/test/java/com/templateai/sandbox/task \
           sandbox/src/main/java/com/templateai/sandbox/DemoData.java
+./mvnw -o test && git add -A && git commit -q -m "chore: drop the sample domain"
 ```
 
-Then run [`prompts/00-kickoff.md`](prompts/00-kickoff.md). Everything in `common/`, the error
-contract, the config, and the test template carry over unchanged.
+Deleting it first leaves you with a repo that doesn't compile, no reference to copy from, and
+nothing to demo if the next ten minutes go badly.
 
-For the frontend, change the constants at the top of `static/app.js`, the `<thead>` in
-`index.html`, and the cells in `taskRow()`. Two things stay untouched: `ErrorContractIT` (repoint
-its paths, keep its assertions) and `common/` (nothing in it knows what a task is).
+Whatever you do, `common/` stays untouched — nothing in it knows what a task is. For the frontend,
+change the constants at the top of `static/app.js`, the `<thead>` in `index.html`, and the cells in
+`taskRow()`.
 
 ## Checkpoint after every working feature
 
@@ -118,18 +135,31 @@ already right, and the operational concerns are deliberately absent.
 | `h2` (default) | in-memory, seeded on boot, zero setup — what you demo on |
 | `test` | isolated in-memory database, no seed data, quiet logs |
 
-H2 runs in `MODE=PostgreSQL`, so the SQL and JPA you write here maps onto a real Postgres later.
+H2 runs in `MODE=PostgreSQL`, which reduces the common syntax differences — identifier quoting,
+`LIMIT`/`OFFSET`, `COALESCE`, sequence and identity declarations — so ordinary JPA and JPQL written
+here won't need rewriting later. It is a compatibility mode, not an emulator: **locking behaviour,
+constraint enforcement, transaction isolation, and any native SQL still have to be verified against
+a real PostgreSQL** before you rely on them. Say that rather than claiming portability.
+
 There is no external-database profile: nothing in this repo needs infrastructure to run.
 
 ## Handing this off as an archive
 
-Build it from git, not by zipping the working tree — `git archive` ships only tracked files, so
-`target/`, `.idea/`, `__MACOSX/`, and `.DS_Store` cannot leak in:
+`git archive … HEAD` packages **the last commit, not your working tree.** Uncommitted edits and
+untracked files are silently left out — which is exactly the safety property you want against
+`target/` and `.idea/`, and exactly the trap that ships a stale build. Commit first, always:
 
 ```bash
+git status --porcelain          # must print nothing before you go further
+git add -A && git commit -m "chore: checkpoint before archive"
+
 git archive --format=zip --prefix=template-ai/ -o /tmp/template-ai.zip HEAD
-unzip -l /tmp/template-ai.zip | grep -E 'target/|\.idea/|__MACOSX|\.DS_Store' || echo "clean"
+unzip -l /tmp/template-ai.zip | grep -E 'target/|\.idea/|__MACOSX|\.DS_Store' && echo "LEAKED"
 ```
 
-macOS Finder's "Compress" adds a `__MACOSX/` sidecar and resource-fork `._*` files; both are
-gitignored here, but the Finder path adds them at zip time regardless. Use the command above.
+Then extract the zip somewhere clean and run `./mvnw clean test` inside it. That is the only check
+that proves what you're handing over actually builds.
+
+Do not use macOS Finder's "Compress" as a substitute. It zips whatever is on disk — including
+`target/`, `.idea/`, and anything else gitignored — and adds a `__MACOSX/` sidecar with
+resource-fork `._*` files on top. Gitignore rules have no effect on it.

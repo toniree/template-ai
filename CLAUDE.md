@@ -21,7 +21,7 @@ do not implement both, and do not build for a requirement nobody asked for.
 - DTO-per-layer. One request record + one response record per operation, that's it.
 - Renaming, reformatting, or "cleaning up" code you weren't asked to touch.
 
-## Layout — one flat package per feature, 5 files
+## Layout — one flat package per feature
 
 ```
 com.templateai.sandbox
@@ -30,9 +30,18 @@ com.templateai.sandbox
 └── task/     Task, TaskRepository, TaskDtos, TaskService, TaskController
 ```
 
-`task/` is the sample domain — it exists only to prove the wiring works end to end. Copy its shape
-for a new feature; delete or rename it once the real problem is known. No `impl/`, no `jpa/`, no
-`mapper/` subpackages. All request/response records for a feature live in one `<Feature>Dtos.java`.
+Five files is the **default shape for a persisted CRUD resource**, not a quota. Omit any layer with
+no responsibility: a computed endpoint that stores nothing needs no entity or repository; a service
+that only forwards to the repository can wait until it has a rule to hold. One concrete
+collaborator — an external client, a parser, a scheduling or pricing algorithm — is fine when the
+problem actually calls for it; give it a plain class in the same package.
+
+What stays banned regardless of file count: generic frameworks, a service interface with one
+implementation, and abstractions added for a caller that doesn't exist yet.
+
+`task/` is the sample domain — it exists to prove the wiring works end to end. No `impl/`, no
+`jpa/`, no `mapper/` subpackages. All request/response records for a feature live in one
+`<Feature>Dtos.java`.
 
 ## Conventions that are not negotiable
 
@@ -57,12 +66,24 @@ silently becomes `0`/`false` when the caller omits it, which validation then acc
 aggregate, fetch it for all rows in one grouped query with a projection interface, not one query
 per row.
 
-**Read-then-write on a rule** — if you read state, decide from it, and then write based on that
-decision, the read must take a row lock or the rule is only advisory. Use a **derived** finder with
-`@Lock(LockModeType.PESSIMISTIC_WRITE)` inside the service's existing `@Transactional`. On this
-stack, `@Lock` on a derived finder emitted `for update` while the same annotation on an explicit
-`@Query` did not — with no warning. **Never assume a lock applied**: `show-sql` is on under the
-`h2` profile, so confirm `for update` is in the generated SQL.
+**Concurrency** — reach for it only when concurrent requests could actually violate an invariant
+the problem states. Most endpoints don't have one; adding locking to them is cost without benefit.
+When there is one, pick the cheapest mechanism that enforces it:
+
+- A **database constraint** (`unique`, `check`, a foreign key) — the invariant becomes
+  unrepresentable, no application logic to get wrong. First choice whenever it fits.
+- An **atomic write** — a single conditional `UPDATE … WHERE <the invariant still holds>`, where
+  zero rows affected means "rejected". No lock, one round trip.
+- **Optimistic locking** (`@Version`) — right when conflicts are rare and the caller can retry or
+  be told 409.
+- **Pessimistic locking** (`@Lock(LockModeType.PESSIMISTIC_WRITE)` on a **derived** finder, inside
+  the existing `@Transactional`) — right when contention is real and a retry loop would be worse.
+  Costs you serialized access to that row.
+
+Say which one you picked and why. If you use a lock, **never assume it applied**: on this stack
+`@Lock` on a derived finder emitted `for update` while the same annotation on an explicit `@Query`
+did not, silently. `show-sql` is on under the `h2` profile — confirm `for update` is in the
+generated SQL.
 
 **Numbers that must be exact** — counts, quantities, anything summed or compared against a limit:
 integer types, never `double` or `float`. Compare a limit as `amount > limit - used`, never
@@ -89,10 +110,12 @@ avoids, and mid-interview is the worst time to pay it.
 
 ```bash
 cd sandbox
-./mvnw -o spring-boot:run     # http://localhost:8080  (offline flag = fastest start)
-./mvnw -o test                # whole suite: 13 tests, ~3s
+./mvnw -o spring-boot:run     # http://localhost:8080  (offline flag skips dependency resolution)
+./mvnw -o test                # whole suite
 ./mvnw -o test -Dtest=TaskApiIT
 ```
+
+Report the test count and result you actually saw. Never state one you didn't run.
 
 `-o` only works because `~/.m2` is already populated. If you change `pom.xml`, drop the `-o` for
 the next run so the new dependency can download, then go back to offline.

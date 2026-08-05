@@ -10,7 +10,7 @@ cd sandbox
 ./mvnw -o test                                             # whole suite
 ./mvnw -o test -Dtest=TaskApiIT                            # one class
 ./mvnw -o test -Dtest=TaskApiIT#createsThenReadsBackATask  # one method
-./mvnw -o clean compile                                    # fast compile check
+./mvnw -o clean compile                                    # compile only, no tests
 ```
 
 `/swagger-ui.html` · `/h2-console` (`jdbc:h2:mem:sandbox`, user `sa`, blank password) ·
@@ -48,7 +48,7 @@ appends the status to a body you also want to see.
 | `@Entity @Id @GeneratedValue(strategy = IDENTITY)` | JPA entity + PK |
 | `@ManyToOne(fetch = LAZY)` + `@JoinColumn` | the owning side of a relationship |
 | `@Enumerated(EnumType.STRING)` | store enum names, never ordinals |
-| `@Table(uniqueConstraints = …, indexes = …)` | constraints in code, so H2 and Postgres agree |
+| `@Table(uniqueConstraints = …, indexes = …)` | declare constraints and indexes on the entity |
 | `@Getter @Setter @NoArgsConstructor` | Lombok on entities — **never `@Data`** (breaks equals/hashCode with proxies) |
 | `@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")` | integration test |
 | `@WebMvcTest(X.class)` + `@MockitoBean` | controller slice test (`@MockBean` is deprecated in Boot 3.4) |
@@ -59,9 +59,19 @@ appends the status to a body you also want to see.
 `@NotNull` `@NotBlank` `@Positive` `@PositiveOrZero` `@Size(min,max)` `@Pattern(regexp)` `@Email`
 `@Min` `@Max` `@Future` `@PastOrPresent`
 
-Put them on the request record. `@Pattern` and `@Size` pass on `null` — pair with `@NotBlank` when
-the field is required, and use `@Size(min = 1)` alone when it's an optional PATCH field that must
-not be blanked.
+Put them on the request record, never in a service `if`. **`@Pattern` and `@Size` both pass on
+`null`; `@NotBlank` and `@NotNull` both reject it.** That difference is the whole trick for PATCH.
+
+| The field is… | Use |
+|---|---|
+| Required, must have content | `@NotBlank` |
+| Required, may be any value including empty | `@NotNull` |
+| Optional (PATCH), but must have content if sent | `@Pattern(regexp = "(?s).*\\S.*", message = "must not be blank")` |
+| Optional (PATCH), may be empty if sent | nothing, or `@Size(max = n)` |
+
+`@Size(min = 1)` is **not** a blank check — it counts characters, so `"   "` has length 3 and
+passes. Use the pattern above when whitespace-only must be rejected; `TaskDtos.UpdateTaskRequest`
+is the worked example, and `TaskApiIT.rejectsAPatchWhoseTitleIsOnlyWhitespace` is the test.
 
 ## Spring Data queries
 
@@ -110,17 +120,34 @@ public record PageResponse<T>(List<T> content, int page, int size, long totalEle
 }
 ```
 
-## Locking a read-then-write
+## Concurrency control, when a requirement needs it
 
-If you read state, decide from it, then write — the read needs a row lock or the rule is advisory.
+First ask whether concurrent requests can actually break an invariant the problem states. Usually
+they can't, and the answer is to do nothing and say so. When they can, work down this list and stop
+at the first one that fits:
 
 ```java
+// 1. A constraint — the invariant becomes unrepresentable. No application logic to get wrong.
+@Table(uniqueConstraints = @UniqueConstraint(name = "uk_x_key", columnNames = "key"))
+// a violation surfaces as DataIntegrityViolationException -> 409, already handled
+
+// 2. An atomic conditional write — one round trip, no lock. 0 rows affected means "rejected".
+@Modifying
+@Query("update Account a set a.used = a.used + :n where a.id = :id and a.used + :n <= a.cap")
+int consume(@Param("id") Long id, @Param("n") long n);
+
+// 3. Optimistic locking — conflicts are rare, the loser retries or gets a 409.
+@Version private long version;   // on the entity; throws OptimisticLockingFailureException
+
+// 4. Pessimistic locking — real contention, and a retry loop would be worse. Costs you
+//    serialized access to that row for the rest of the transaction.
 @Lock(LockModeType.PESSIMISTIC_WRITE)          // keep it a DERIVED finder, see the gotcha below
 Optional<Account> findWithLockById(Long id);
 ```
 
-Call it from inside the service's existing `@Transactional` method, and confirm `for update` is in
-the logged SQL before you believe it.
+Whichever you pick, say why that one and not the others — the reasoning is the signal, not the
+mechanism. If you use a lock, call it from inside the service's existing `@Transactional` method,
+and confirm `for update` is in the logged SQL before you believe it.
 
 ## HTTP status codes
 
@@ -140,7 +167,10 @@ outcome**, not a 4xx. Reserve 4xx for requests you could not process at all.
 
 ## Coming from SQL Server — what differs
 
-H2 runs in `MODE=PostgreSQL` here, so this is the dialect you're writing:
+H2 runs in `MODE=PostgreSQL` here, which smooths over the common **syntax** differences below. It
+does not make H2 into PostgreSQL: locking behaviour, constraint enforcement, transaction isolation,
+and anything written as native SQL still need verifying against a real PostgreSQL. Treat the table
+as "what to type", not "what will behave identically".
 
 | T-SQL | Postgres / H2 |
 |---|---|

@@ -3,6 +3,9 @@
 The workhorse. One prompt per feature, always a full vertical slice, always followed by running it.
 Two features in one prompt means you review neither.
 
+A slice is: the persistence this behaviour needs (none, if it stores nothing) → the service rule →
+the endpoint → one test → enough UI to click it. Not "all the entities, then all the services".
+
 ```
 Build <feature name> end to end. Read the `task` package first and follow it exactly.
 
@@ -13,17 +16,20 @@ Behaviour:
 API: <METHOD> /api/<path>
 Returns: <status codes and what each means>
 
-Files: <Feature>.java, <Feature>Repository.java, <Feature>Dtos.java, <Feature>Service.java,
-<Feature>Controller.java — one flat package, nothing else.
+Structure: one flat package. The default for a persisted resource is <Feature>.java,
+<Feature>Repository.java, <Feature>Dtos.java, <Feature>Service.java, <Feature>Controller.java —
+but drop any of those that would have no responsibility here, and tell me which you dropped and
+why. If this genuinely needs one concrete collaborator (an external client, a parser, an
+algorithm), add it as a plain class in the same package and say so.
 
 Validation goes on the request record. Business rules go in the service. Errors are
 ApiException.notFound/badRequest/conflict — never a try/catch that builds a response. Map to a
 response record inside the service transaction. Box numeric and boolean fields on request records
 so an omitted field fails @NotNull instead of silently defaulting.
 
-Do not add: an interface for the service, a mapper class, endpoints I did not list, fields the
-behaviour above doesn't need, or a new dependency (ask me first). Do not touch common/, the
-config, or the frontend.
+Do not add: an interface for the service, a generic base class, a mapper class, endpoints I did not
+list, fields the behaviour above doesn't need, or a new dependency (ask me first). Do not touch
+common/, the config, or the frontend.
 
 When it compiles, run ./mvnw -o test and tell me the result. Then stop.
 ```
@@ -61,10 +67,21 @@ This list endpoint shows a per-row aggregate. Do it in one grouped query with a 
 interface, not a query per row.
 ```
 
+Concurrency, only if the requirement has an invariant two simultaneous requests could break — ask
+for the analysis before asking for a mechanism:
+
 ```
-<endpoint> reads state, decides from it, then writes. Take a pessimistic row lock on the read via a
-derived finder with @Lock(PESSIMISTIC_WRITE), inside the existing @Transactional. Then show me the
-generated SQL so I can confirm `for update` is actually there.
+Can two concurrent requests to <endpoint> violate <the stated invariant>? If not, say so and change
+nothing. If they can, tell me the cheapest mechanism that prevents it — a unique/check constraint,
+a conditional UPDATE, @Version, or a pessimistic row lock — and why the cheaper ones don't fit.
+Don't implement it yet.
+```
+
+Then, if you've agreed a pessimistic lock is the right one:
+
+```
+Add the row lock via a derived finder with @Lock(PESSIMISTIC_WRITE), inside the existing
+@Transactional. Then show me the generated SQL so I can confirm `for update` is actually there.
 ```
 
 ```
