@@ -3,9 +3,8 @@ package com.templateai.sandbox.widget;
 import java.util.List;
 
 /**
- * Backend-agnostic contract. Exactly one implementation is active at a time,
- * selected by the "sql" or "mongo" Spring profile (see {@link WidgetService}
- * implementations in the jpa/ and mongo/ subpackages).
+ * Backend-agnostic contract, implemented by {@code JpaWidgetService} and
+ * activated for both the "h2" and "postgres" Spring profiles.
  */
 public interface WidgetService {
 

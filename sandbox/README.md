@@ -21,8 +21,9 @@ Product Mindset - Do you have opinions about the products you build?
 
 - Java 21, Spring Boot 3.4.1, Maven
 - REST via Spring MVC, Bean Validation, global JSON error handling
-- Swappable persistence: **JPA/H2** (`sql` profile, default) or **MongoDB** (`mongo` profile),
-  behind a single `WidgetService` interface — swap by flipping one property, no code changes.
+- Swappable persistence: **JPA/H2** (`h2` profile, default) or **JPA/PostgreSQL** (`postgres`
+  profile), behind a single `WidgetService` interface — swap by flipping one property, no code
+  changes (same `WidgetEntity`/`WidgetJpaRepository`/`JpaWidgetService`, just a different datasource).
 - springdoc/Swagger UI at `/swagger-ui.html` for quick manual poking during the interview
 - Actuator health/info at `/actuator/health`
 
@@ -32,26 +33,30 @@ Product Mindset - Do you have opinions about the products you build?
 sandbox/src/main/java/com/templateai/sandbox/
   common/exception/     ApiError, ResourceNotFoundException, GlobalExceptionHandler
   widget/                WidgetDto, WidgetService (interface), WidgetController
-  widget/jpa/            WidgetEntity, WidgetJpaRepository, JpaWidgetService   (@Profile("sql"))
-  widget/mongo/          WidgetDocument, WidgetMongoRepository, MongoWidgetService (@Profile("mongo"))
+  widget/jpa/            WidgetEntity, WidgetJpaRepository, JpaWidgetService   (@Profile({"h2","postgres"}))
 ```
 
 `Widget` is a throwaway example resource that demonstrates the full pattern (DTO validation,
-not-found handling, both persistence backends). Delete it once the real interview prompt lands,
-or copy the same folder shape (`<feature>/`, `<feature>/jpa/`, `<feature>/mongo/`) for the
-resource you actually need to build.
+not-found handling, JPA persistence). Delete it once the real interview prompt lands, or copy the
+same folder shape (`<feature>/`, `<feature>/jpa/`) for the resource you actually need to build.
 
 ## Running
 
 ```bash
 cd sandbox
-./mvnw spring-boot:run                      # SQL/H2 profile (default, zero setup)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=mongo   # requires a local mongod on :27017
+./mvnw spring-boot:run                                       # H2 profile (default, zero setup)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=postgres    # requires a local Postgres on :5432
+```
+
+To start a local Postgres for the `postgres` profile:
+
+```bash
+docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
 ```
 
 Then:
 - `http://localhost:8080/swagger-ui.html` — try the API
-- `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:sandbox`, user `sa`, blank password) — SQL profile only
+- `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:sandbox`, user `sa`, blank password) — H2 profile only
 - `http://localhost:8080/actuator/health`
 
 ## Testing
@@ -60,20 +65,13 @@ Then:
 ./mvnw test
 ```
 
-`WidgetControllerIT` runs a full create/get/update/delete flow through MockMvc against the SQL
+`WidgetControllerIT` runs a full create/get/update/delete flow through MockMvc against the H2
 profile — a template for testing whatever resource you build live.
-
-## Switching to real SQL Server instead of H2
-
-H2 is configured in MSSQLServer compatibility mode (`MODE=MSSQLServer` in the JDBC URL) so JPA/SQL
-you write maps cleanly onto SQL Server semantics. If you want to point at a real instance:
-
-1. Add `com.microsoft.sqlserver:mssql-jdbc` to `pom.xml`.
-2. In `application.yml` under the `sql` profile, replace the H2 `datasource.url`/`driver-class-name`
-   with your SQL Server connection string and `org.hibernate.dialect.SQLServerDialect`.
 
 ## Notes for interview day
 
-- Default profile is `sql`/H2 because it needs no external services — safest choice if you don't
-  know in advance whether Mongo will be reachable in the interview environment.
+- Default profile is `h2` because it needs no external services — safest choice if you don't
+  know in advance whether a Postgres instance will be reachable in the interview environment.
+- H2 runs in PostgreSQL compatibility mode (`MODE=PostgreSQL` in the JDBC URL) so the JPA/SQL you
+  write maps cleanly onto real PostgreSQL semantics when you switch profiles.
 

@@ -10,7 +10,7 @@ import com.templateai.sandbox.widget.WidgetDto;
 import com.templateai.sandbox.widget.WidgetService;
 
 @Service
-@Profile("sql")
+@Profile({"h2", "postgres"})
 public class JpaWidgetService implements WidgetService {
 
     private final WidgetJpaRepository repository;

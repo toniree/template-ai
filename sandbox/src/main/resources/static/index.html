@@ -7,12 +7,22 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header>
-    <h1>Widgets</h1>
-    <p class="subtitle">Minimal dependency-free UI over <code>/api/widgets</code></p>
-  </header>
+  <nav class="topnav">
+    <span class="brand">Sandbox</span>
+    <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="/swagger-ui.html" target="_blank" rel="noopener">Swagger</a>
+    </div>
+  </nav>
+
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 
   <main>
+    <header class="page-header">
+      <h1>Widgets</h1>
+      <p class="subtitle">Minimal dependency-free UI over <code>/api/widgets</code></p>
+    </header>
+
     <section class="panel">
       <h2>Create widget</h2>
       <form id="create-form" class="form-row">
@@ -24,7 +34,7 @@
           Quantity
           <input type="number" name="quantity" id="quantity" required min="0" step="1" value="0">
         </label>
-        <button type="submit">Add</button>
+        <button type="submit" class="btn btn-primary">Add</button>
       </form>
       <p id="form-error" class="error" role="alert" hidden></p>
     </section>
@@ -32,22 +42,45 @@
     <section class="panel">
       <div class="panel-header">
         <h2>All widgets</h2>
-        <button id="refresh-btn" type="button">Refresh</button>
+        <button id="refresh-btn" type="button" class="btn btn-secondary">Refresh</button>
       </div>
+
+      <div class="toolbar">
+        <input type="search" id="search-input" placeholder="Search by name…" aria-label="Search by name">
+        <label class="page-size-label">
+          Page size
+          <select id="page-size">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </div>
+
       <p id="list-error" class="error" role="alert" hidden></p>
-      <table id="widget-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Quantity</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="widget-table-body">
-          <tr><td colspan="4" class="empty">Loading…</td></tr>
-        </tbody>
-      </table>
+
+      <div class="table-wrap">
+        <table id="widget-table">
+          <thead>
+            <tr>
+              <th data-sort="id" class="sortable">ID <span class="sort-indicator"></span></th>
+              <th data-sort="name" class="sortable">Name <span class="sort-indicator"></span></th>
+              <th data-sort="quantity" class="sortable">Quantity <span class="sort-indicator"></span></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="widget-table-body">
+            <tr><td colspan="4" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <button id="prev-page" type="button" class="btn btn-secondary">‹ Prev</button>
+        <span id="page-info" class="page-info"></span>
+        <button id="next-page" type="button" class="btn btn-secondary">Next ›</button>
+      </div>
     </section>
   </main>
 
