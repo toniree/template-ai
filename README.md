@@ -4,7 +4,7 @@ Interview scaffold for the Brex senior SWE round: a working corporate-card spend
 database, a REST layer, and a frontend that reads from it — plus the prompt library and playbooks
 for the 100 minutes.
 
-**Java 21 · Spring Boot 3.4 · H2 (Postgres-compatible) · vanilla-JS UI, no build step**
+**Java 21 · Spring Boot 3.4 · H2 in PostgreSQL compatibility mode · vanilla-JS UI, no build step**
 
 ```bash
 cd sandbox

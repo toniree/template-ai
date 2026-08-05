@@ -65,8 +65,8 @@ public class CardService {
     }
 
     /**
-     * Cards are never deleted — a card is the parent of immutable financial records, so the
-     * lifecycle is ACTIVE -> FROZEN -> CANCELLED. Cancelling is terminal.
+     * Cards are never deleted — a card is the parent of immutable financial records. The lifecycle
+     * is ACTIVE &lt;-&gt; FROZEN; either may become CANCELLED; CANCELLED is terminal.
      */
     public CardResponse update(Long id, UpdateCardRequest request) {
         Card card = require(id);
