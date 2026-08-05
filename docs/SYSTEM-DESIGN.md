@@ -177,6 +177,10 @@ This repo implements the first option (`CardRepository.findWithLockById`), becau
 balance derived. If asked why not the conditional update: it's faster, but it requires the
 denormalized column and the drift risk that comes with it.
 
+**Watch the arithmetic too.** `spent + amount > limit` overflows for a large enough amount, wraps
+negative, and reads as "under the limit". Compare as `amount > limit - spent`, where both operands
+are non-negative and the subtraction cannot overflow.
+
 **Partial failure.** Committed to the database, then the process died before responding. The client
 retries — idempotency key makes that safe. This is *the* reason idempotency exists; say it that way.
 

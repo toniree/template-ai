@@ -154,6 +154,60 @@ class TransactionApiIT {
                 .andExpect(jsonPath("$.availableMinor", is(40_00)));
     }
 
+    /**
+     * A key identifies one request, not "some request". Reusing it with different parameters is a
+     * client bug; silently returning the original charge would hide it.
+     */
+    @Test
+    void reusingAnIdempotencyKeyWithDifferentParametersIsRejected() throws Exception {
+        long cardId = createCard(100_00L);
+
+        mockMvc.perform(authorize(new AuthorizeRequest(cardId, 25_00L, "USD", "GitHub"), "key-reuse-1"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(authorize(new AuthorizeRequest(cardId, 90_00L, "USD", "GitHub"), "key-reuse-1"))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(authorize(new AuthorizeRequest(cardId, 25_00L, "USD", "Figma"), "key-reuse-1"))
+                .andExpect(status().isConflict());
+
+        // The original charge stands, and nothing was charged twice.
+        mockMvc.perform(get("/api/cards/" + cardId))
+                .andExpect(jsonPath("$.spentMinor", is(25_00)));
+    }
+
+    /**
+     * `spent + amount > limit` overflows for a large enough amount and wraps negative, which reads
+     * as "under the limit" and approves the charge. Needs prior spend to push the sum over the top.
+     */
+    @Test
+    void anAmountLargeEnoughToOverflowIsDeclinedNotApproved() throws Exception {
+        long cardId = createCard(100_00L);
+
+        mockMvc.perform(authorize(new AuthorizeRequest(cardId, 60_00L, "USD", "AWS"), null))
+                .andExpect(jsonPath("$.status", is("APPROVED")));
+
+        mockMvc.perform(authorize(new AuthorizeRequest(cardId, Long.MAX_VALUE, "USD", "Overflow"), null))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status", is("DECLINED")))
+                .andExpect(jsonPath("$.declineReason", is("LIMIT_EXCEEDED")));
+
+        mockMvc.perform(get("/api/cards/" + cardId))
+                .andExpect(jsonPath("$.spentMinor", is(60_00)));
+    }
+
+    @Test
+    void spendingExactlyTheLimitIsApprovedAndOneMinorUnitMoreIsNot() throws Exception {
+        long atLimit = createCard(100_00L);
+        mockMvc.perform(authorize(new AuthorizeRequest(atLimit, 100_00L, "USD", "Exact"), null))
+                .andExpect(jsonPath("$.status", is("APPROVED")));
+
+        long overLimit = createCard(100_00L);
+        mockMvc.perform(authorize(new AuthorizeRequest(overLimit, 100_01L, "USD", "OneOver"), null))
+                .andExpect(jsonPath("$.status", is("DECLINED")))
+                .andExpect(jsonPath("$.declineReason", is("LIMIT_EXCEEDED")));
+    }
+
     @Test
     void rejectsACurrencyThatDoesNotMatchTheCard() throws Exception {
         long cardId = createCard(100_00L);

@@ -16,7 +16,12 @@
 
 	<properties>
 		<java.version>21</java.version>
-		<springdoc.version>2.6.0</springdoc.version>
+		<!--
+		  Must track the Spring Boot line. 2.6.0 is built against Spring Framework 6.1 and blows up
+		  on Boot 3.4 (Framework 6.2) with NoSuchMethodError on ControllerAdviceBean.<init>, which
+		  makes /v3/api-docs return 500 while /swagger-ui.html still renders an empty shell.
+		-->
+		<springdoc.version>2.7.0</springdoc.version>
 	</properties>
 
 	<dependencies>

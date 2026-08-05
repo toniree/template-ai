@@ -45,6 +45,7 @@ public class TransactionService {
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
             Optional<Transaction> replay = transactions.findByIdempotencyKey(idempotencyKey);
             if (replay.isPresent()) {
+                requireSameRequest(replay.get(), request);
                 return new AuthorizeResult(TransactionResponse.from(replay.get()), true);
             }
         }
@@ -74,6 +75,22 @@ public class TransactionService {
     }
 
     /**
+     * An idempotency key identifies one specific request, not just "a request". Replaying a key
+     * with different parameters means the client has a bug or is reusing keys — returning the
+     * original charge would hide that, so 409 and make them pick a new key.
+     */
+    private void requireSameRequest(Transaction original, AuthorizeRequest request) {
+        boolean identical = original.getCard().getId().equals(request.cardId())
+                && original.getAmountMinor() == request.amountMinor()
+                && original.getCurrency().equals(request.currency())
+                && original.getMerchant().equals(request.merchant());
+        if (!identical) {
+            throw ApiException.conflict(
+                    "Idempotency-Key was already used for a different request; use a new key");
+        }
+    }
+
+    /**
      * Available balance is derived by summing approved spend rather than kept in a mutable column,
      * so it cannot drift out of sync with the transactions that produced it. At real volume you'd
      * maintain a running balance and reconcile against this sum — see docs/SYSTEM-DESIGN.md.
@@ -88,7 +105,11 @@ public class TransactionService {
             return Transaction.DeclineReason.CARD_CANCELLED;
         }
         long spent = transactions.sumAmountByCardAndStatus(card.getId(), Transaction.Status.APPROVED);
-        if (spent + amountMinor > card.getSpendLimitMinor()) {
+
+        // Written as a subtraction, not `spent + amountMinor > limit`: that sum overflows for a
+        // large enough amount, wraps negative, and sails past the comparison as an approval.
+        // Both operands here are non-negative, so `limit - spent` cannot overflow.
+        if (amountMinor > card.getSpendLimitMinor() - spent) {
             return Transaction.DeclineReason.LIMIT_EXCEEDED;
         }
         return null;

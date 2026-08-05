@@ -38,7 +38,10 @@ All request/response records for a feature live together in one `<Feature>Dtos.j
 ## Conventions that are not negotiable
 
 **Money** — `long ...Minor` (cents) plus a 3-letter `currency`. Never `double`, never `float`.
-The API speaks minor units; only the UI formats to dollars.
+The API speaks minor units; only the UI formats to dollars. Compare limits as
+`amount > limit - spent`, never `spent + amount > limit` — the sum overflows and wraps negative.
+Only total amounts within a single currency; converting needs an FX rate and a rate timestamp, so
+don't invent one.
 
 **Layers** — Controller does HTTP only (status codes, headers, param binding). Service holds every
 business rule and is `@Transactional`. Repository does queries. Entities never leave the service:
@@ -63,8 +66,9 @@ grouped query, like `TransactionRepository.sumAmountGroupedByCard`.
 **Read-then-write on a rule** — if you read state, decide from it, and then write based on that
 decision, the read must take a row lock or the rule is only advisory. Use
 `CardRepository.findWithLockById` as the pattern, inside the service's existing `@Transactional`.
-`@Lock` only works on a **derived** query method; combined with `@Query` it is silently ignored
-and emits no `for update`. Never assume a lock applied — check the SQL.
+On this stack, `@Lock` on a derived finder emitted `for update` while the same annotation on an
+explicit `@Query` did not — with no warning. **Never assume a lock applied**: turn on
+`show-sql` and confirm `for update` is in the generated SQL.
 
 **Status codes** — 201 + `Location` on create, 200 on read/update, 204 on delete, 400 validation,
 404 unknown id, 409 state conflict. A business rejection that was correctly processed (a declined
@@ -73,17 +77,24 @@ charge) is a 201 with `status: DECLINED`, not a 4xx.
 **Persistence** — `@ManyToOne(fetch = LAZY)` always. Lombok `@Getter @Setter @NoArgsConstructor` on
 entities, never `@Data`. `@Enumerated(EnumType.STRING)`, never ordinal.
 
-**Frontend** — `static/app.js` is config-driven. Adding a screen means adding one entry to the
-`RESOURCES` object; do not write bespoke DOM code per resource.
+**Frontend** — `static/app.js` is config-driven: a table-and-form screen over a REST resource is
+one entry in `RESOURCES`, so use that when the problem fits it. When a workflow doesn't fit — a
+wizard, a dashboard, a detail view, anything that isn't a list plus a create form — write the
+smallest bespoke HTML/JS for it instead. **Never widen the generic renderer to accommodate a
+one-off screen**; an abstraction stretched to cover its second unlike case costs more than the
+duplication it avoids, and mid-interview is the worst time to pay it.
 
 ## Commands
 
 ```bash
 cd sandbox
 ./mvnw -o spring-boot:run     # http://localhost:8080  (offline flag = fastest start)
-./mvnw -o test                # whole suite, ~10s
+./mvnw -o test                # whole suite: 25 tests, ~3s
 ./mvnw -o test -Dtest=CardApiIT
 ```
+
+`-o` only works because `~/.m2` is already populated. If you change `pom.xml`, drop the `-o` for
+the next run so the new dependency can download, then go back to offline.
 
 Swagger `/swagger-ui.html` · H2 console `/h2-console` (jdbc:h2:mem:sandbox, `sa`, no password).
 Demo data is seeded by `DemoData.java` on the `h2` profile only.

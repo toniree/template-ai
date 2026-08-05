@@ -15,7 +15,7 @@ public final class TransactionDtos {
     /** Note: the idempotency key is an {@code Idempotency-Key} header, not a body field. */
     public record AuthorizeRequest(
             @NotNull Long cardId,
-            @Positive long amountMinor,
+            @NotNull @Positive Long amountMinor,
             @NotBlank @Pattern(regexp = "[A-Z]{3}", message = "must be a 3-letter ISO-4217 code") String currency,
             @NotBlank String merchant
     ) {

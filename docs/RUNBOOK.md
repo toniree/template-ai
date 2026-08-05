@@ -6,22 +6,35 @@ Read `prompts/README.md` for the mechanics. This is the plan around them.
 
 ## Pre-flight (do this before the call, not during)
 
+Two steps, in this order. Step 1 must run **online** — it is what makes step 2 possible.
+
 ```bash
 cd sandbox
-./mvnw -o clean test        # everything green, ~15s cold
+
+# 1. ONLINE, once. Populates ~/.m2 with every dependency.
+./mvnw clean test           # expect: Tests run: 25, Failures: 0, Errors: 0
+
+# 2. OFFLINE preflight. Proves ~/.m2 is complete and the interview commands will work
+#    with no network at all. If this fails, go back to step 1 — do not debug it live.
+./mvnw -o clean test        # expect: same 25, ~4s
 ./mvnw -o spring-boot:run   # then open http://localhost:8080
 ```
 
+`-o` downloads nothing; it only succeeds once every artifact is already cached. A fresh machine, a
+cleared `~/.m2`, or **any `pom.xml` change** breaks it until you run online again. That's why the
+offline run is a verification step and not just a habit.
+
+- [ ] Online run done, then `./mvnw -o clean test` passes with **25 tests**
 - [ ] App boots, UI shows three seeded cards and a declined transaction
-- [ ] `./mvnw -o test` green — 11 tests
+- [ ] `/` and `/swagger-ui.html` both load, and `/v3/api-docs` returns JSON (not a 500)
 - [ ] Claude Code open at the **repo root** so it picks up `CLAUDE.md`
 - [ ] `prompts/00-kickoff.md` open in a tab, ready to paste
-- [ ] Swagger `/swagger-ui.html` and H2 console `/h2-console` open in tabs
+- [ ] Swagger and H2 console `/h2-console` open in tabs
 - [ ] Screen share rehearsed: editor, browser, terminal all visible without alt-tab hunting
 - [ ] Working from `main` on a clean tree, so `git checkout .` is always an escape hatch
 
-The `-o` (offline) flag on every Maven command removes dependency-resolution latency and any
-dependence on the network holding up during the call.
+During the call, keep `-o` on every Maven command: it removes dependency-resolution latency and any
+dependence on the network holding up. Drop it for one run after editing `pom.xml`.
 
 ---
 

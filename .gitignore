@@ -21,3 +21,10 @@ buildNumber.properties
 *.iml
 .vscode/
 .DS_Store
+__MACOSX/
+._*
+
+# Handoff archives — build these with `git archive` (see README), never by zipping the tree
+*.zip
+*.tgz
+*.tar.gz

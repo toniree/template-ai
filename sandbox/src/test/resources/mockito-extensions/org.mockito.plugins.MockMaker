@@ -1,0 +1,15 @@
+# Use the subclass mock maker instead of Mockito's default inline mock maker.
+#
+# The inline maker self-attaches a Byte Buddy agent by spawning an external process. When that
+# attach fails, Mockito throws from plugin initialisation — and because Spring Boot's
+# ResetMocksTestExecutionListener touches Mockito before EVERY test, the entire suite errors with
+# "Could not initialize inline Byte Buddy mock maker" even though nothing here mocks anything.
+# It is intermittent, which is worse than a hard failure: green at home, red on the day.
+#
+# Verified: with this file removed and -XX:+DisableAttachMechanism, 20 of 20 tests error.
+# With it, all pass. Reproduce that check with:
+#   ./mvnw -o clean test -DargLine="-XX:+DisableAttachMechanism"
+#
+# If you later need to stub a final class or a static method, delete this file and register
+# Mockito as a real -javaagent rather than going back to self-attach.
+mock-maker-subclass
