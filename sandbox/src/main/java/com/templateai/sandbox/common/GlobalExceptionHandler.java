@@ -48,8 +48,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
-     * A unique/FK constraint rejected the write. Most often here: two concurrent requests carrying
-     * the same Idempotency-Key. 409 tells the caller to retry rather than silently double-charging.
+     * A unique or foreign-key constraint rejected the write — a duplicate, or a reference to a row
+     * that isn't there. 409 says "your request conflicts with existing state", which is the caller's
+     * problem to resolve; a 500 would tell them to retry something that can never succeed.
      */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleConstraint(DataIntegrityViolationException ex) {

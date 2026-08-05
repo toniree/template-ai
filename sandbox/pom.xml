@@ -12,7 +12,7 @@
 	<artifactId>sandbox</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>sandbox</name>
-	<description>Brex senior SWE AI-assisted interview scaffold</description>
+	<description>Domain-neutral Spring Boot starter for AI-assisted coding interviews</description>
 
 	<properties>
 		<java.version>21</java.version>
@@ -39,7 +39,7 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- Persistence: relational JPA, backing either the "h2" (in-memory, zero setup) or "postgres" profile -->
+		<!-- Persistence: JPA over in-memory H2. No external database, ever. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -47,11 +47,6 @@
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
-			<scope>runtime</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.postgresql</groupId>
-			<artifactId>postgresql</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 		<!-- API docs / quick manual exploration during the interview -->
