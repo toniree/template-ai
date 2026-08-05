@@ -7,8 +7,8 @@ Quick reference for the Brex AI-assisted interview. Keep this open in a tab.
 ```bash
 cd sandbox
 
-./mvnw spring-boot:run                                    # run, sql/H2 profile (default)
-./mvnw spring-boot:run -Dspring-boot.run.profiles=mongo    # run, mongo profile
+./mvnw spring-boot:run                                       # run, H2 profile (default)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=postgres    # run, Postgres profile
 
 ./mvnw test                                                # run all tests
 ./mvnw test -Dtest=WidgetControllerIT                      # run one test class
@@ -36,13 +36,12 @@ cd sandbox
 | `@Component` | Generic managed bean when no more specific stereotype fits |
 | `@Configuration` / `@Bean` | Java-based bean definitions |
 | `@Autowired` | Field/constructor injection (prefer constructor injection — no annotation needed if there's only one constructor) |
-| `@Profile("sql")` | Only register this bean when the given profile is active — how this repo's Mongo/SQL toggle works |
+| `@Profile({"h2","postgres"})` | Only register this bean when one of the given profiles is active — how this repo's H2/Postgres toggle works |
 | `@ConditionalOnProperty` | Register a bean only if a property matches |
 | `@Transactional` | Wrap a method in a DB transaction; put on `@Service` methods, not repositories/controllers. `readOnly = true` for read paths as an optimization hint |
 | `@Entity` / `@Id` / `@GeneratedValue` | JPA entity + primary key |
 | `@Table(name=...)` / `@Column(name=...)` | Override default table/column naming |
 | `@OneToMany` / `@ManyToOne` / `@ManyToMany` | JPA relationships — watch for `fetch = FetchType.LAZY` vs eager, and N+1 queries |
-| `@Document("collection")` / `@Id` | Mongo document mapping (spring-data-mongodb) |
 | `@RestControllerAdvice` + `@ExceptionHandler` | Centralized error handling → this repo's `GlobalExceptionHandler` |
 | `@NotBlank` `@NotNull` `@Positive` `@PositiveOrZero` `@Size` `@Email` | Bean Validation constraints on DTOs |
 | `@Slf4j` (Lombok) | Injects a `log` field |
@@ -51,7 +50,7 @@ cd sandbox
 | `@WebMvcTest(Controller.class)` | Slice test — controller layer only, mock the service |
 | `@DataJpaTest` | Slice test — JPA repository layer only, in-memory DB |
 | `@MockBean` / `@Autowired MockMvc` | Mock a bean in context / drive HTTP calls in tests |
-| `@ActiveProfiles("sql")` | Pin which profile a test runs under |
+| `@ActiveProfiles("h2")` | Pin which profile a test runs under |
 
 ## HTTP status codes
 
@@ -69,7 +68,7 @@ cd sandbox
 | 422 Unprocessable Entity | Well-formed but semantically invalid | Alternative to 400 for business-rule validation |
 | 500 Internal Server Error | Unhandled exception | Should be rare — catch and translate deliberately |
 
-## SQL snippets (H2 / SQL Server–ish, per this repo's `sql` profile)
+## SQL snippets (H2 / PostgreSQL-ish, per this repo's `h2` profile)
 
 ```sql
 -- inspect schema live at http://localhost:8080/h2-console
@@ -108,7 +107,7 @@ List<WidgetEntity> findOutOfStock();
 
 - "Here's the prompt: [paste]. Before writing code, list the entities, endpoints, and edge cases you'd expect me to be graded on."
 - "Generate the DTO + validation annotations for X, matching the `WidgetDto` pattern in this repo."
-- "Add a new `<Feature>` resource following the exact same shape as `widget/` — interface + `jpa/` + `mongo/` implementations behind `@Profile`."
+- "Add a new `<Feature>` resource following the exact same shape as `widget/` — interface + `jpa/` implementation behind `@Profile`."
 - "Review this controller/service for edge cases: null handling, empty lists, concurrent updates, invalid IDs."
 - "Write a `@WebMvcTest` for this controller that covers the happy path plus one 400 and one 404 case."
 - "I'm about to run out of time — what's the minimum viable version of this that still passes the given tests?"
@@ -124,12 +123,11 @@ com.templateai.sandbox
 ├── common/
 │   └── exception/        ApiError, ResourceNotFoundException, GlobalExceptionHandler
 └── <feature>/            e.g. widget/
-    ├── <Feature>Dto.java        shared DTO + validation, used by controller and both backends
+    ├── <Feature>Dto.java        shared DTO + validation, used by controller and backend
     ├── <Feature>Service.java    backend-agnostic interface
     ├── <Feature>Controller.java REST endpoints, depends only on the interface
-    ├── jpa/                     @Profile("sql") impl: Entity, JpaRepository, Service impl
-    └── mongo/                   @Profile("mongo") impl: Document, MongoRepository, Service impl
+    └── jpa/                     @Profile({"h2","postgres"}) impl: Entity, JpaRepository, Service impl
 ```
 
 Rule of thumb when adding a new resource: copy the `widget/` folder shape exactly. Controller and
-DTO never import anything from `jpa/` or `mongo/` directly — only the `Service` interface.
+DTO never import anything from `jpa/` directly — only the `Service` interface.

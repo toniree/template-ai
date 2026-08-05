@@ -34,7 +34,7 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
-		<!-- Persistence: relational (SQL profile, H2 by default; swap in mssql-jdbc for real SQL Server) -->
+		<!-- Persistence: relational JPA, backing either the "h2" (in-memory, zero setup) or "postgres" profile -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -44,11 +44,10 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
-
-		<!-- Persistence: document (Mongo profile) -->
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 		<!-- API docs / quick manual exploration during the interview -->
 		<dependency>

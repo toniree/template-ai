@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("sql")
+@ActiveProfiles("h2")
 class WidgetControllerIT {
 
     @Autowired
