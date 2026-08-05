@@ -164,6 +164,26 @@ let rows = [];
 let pageMeta = { page: 0, totalPages: 1, totalElements: 0 };
 let filters = {};
 
+/** In-flight/unresolved money-moving submission: { key, fingerprint }. See idempotencyKeyFor. */
+let pendingSubmit = null;
+
+/**
+ * A lost response is ambiguous: the charge may well have posted. So the user's retry has to carry
+ * the SAME Idempotency-Key, or the backend records a second authorization and double-charges.
+ * Hold the key until a definitive response arrives, and only mint a new one when the payload
+ * itself changes — which is what distinguishes "retry that failed charge" from "charge again".
+ *
+ * Note there's no expiry here. Worst case a much later identical submission replays the original
+ * instead of creating a new charge — the safe direction to fail in. Real systems age keys out
+ * (Stripe: 24h); that's on the deliberate cut list in the README.
+ */
+function idempotencyKeyFor(fingerprint) {
+  if (!pendingSubmit || pendingSubmit.fingerprint !== fingerprint) {
+    pendingSubmit = { key: crypto.randomUUID(), fingerprint };
+  }
+  return pendingSubmit.key;
+}
+
 // ---- rendering ------------------------------------------------------------
 
 function renderTabs() {
@@ -325,16 +345,22 @@ async function submitForm(event, config) {
     else payload[field.name] = raw;
   }
 
-  // One key per submission: retrying THIS request is the same charge, a fresh click is a new one.
   // crypto.randomUUID needs a secure context — fine on localhost, which is how this runs.
-  const headers = config.idempotent ? { "Idempotency-Key": crypto.randomUUID() } : undefined;
+  const headers = config.idempotent
+    ? { "Idempotency-Key": idempotencyKeyFor(JSON.stringify(payload)) }
+    : undefined;
 
   try {
     const created = await request(config.path, { method: "POST", body: payload, headers });
+    // Definitive answer received: release the key so the next submission is a new charge.
+    // Cleared before load() so a refresh failure can't leave the key stuck.
+    pendingSubmit = null;
     const result = config.onCreated?.(created) ?? { text: "Created", type: "success" };
     toast(result.text, result.type);
     await load();
   } catch (err) {
+    // pendingSubmit is deliberately NOT cleared here: this may have been an ambiguous failure
+    // where the server did post the charge, so a retry must reuse the same key.
     error.textContent = err.message;
     error.hidden = false;
   } finally {
