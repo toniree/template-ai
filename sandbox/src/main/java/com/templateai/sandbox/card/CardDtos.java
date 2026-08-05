@@ -16,18 +16,27 @@ public final class CardDtos {
     private CardDtos() {
     }
 
+    /**
+     * Boxed {@code Long}, not {@code long}: a primitive silently defaults to 0 when the caller
+     * omits the field, and {@code @PositiveOrZero} would happily accept that — creating a card
+     * with no spend limit instead of rejecting an incomplete request.
+     */
     public record CreateCardRequest(
             @NotBlank String cardholderName,
             @NotBlank @Pattern(regexp = "\\d{4}", message = "must be exactly 4 digits") String last4,
-            @PositiveOrZero long spendLimitMinor,
+            @NotNull @PositiveOrZero Long spendLimitMinor,
             @NotBlank @Pattern(regexp = "[A-Z]{3}", message = "must be a 3-letter ISO-4217 code") String currency
     ) {
     }
 
-    /** Partial update: the only two fields an operator can change on a live card. */
+    /**
+     * Genuinely partial: null means "leave it alone", so freezing a card doesn't require the caller
+     * to know and resend its current limit. Both fields boxed for the same reason as above — with a
+     * primitive, {@code {"status":"FROZEN"}} would zero the spend limit as a side effect.
+     */
     public record UpdateCardRequest(
-            @NotNull Card.Status status,
-            @PositiveOrZero long spendLimitMinor
+            Card.Status status,
+            @PositiveOrZero Long spendLimitMinor
     ) {
     }
 

@@ -50,10 +50,12 @@ const RESOURCES = {
       {
         label: (r) => (r.status === "FROZEN" ? "Unfreeze" : "Freeze"),
         hidden: (r) => r.status === "CANCELLED",
+        // Status only — PATCH leaves omitted fields alone, so there's no need to read the current
+        // limit and send it back (which would race with anyone else editing it).
         run: (r) =>
           request(`/api/cards/${r.id}`, {
             method: "PATCH",
-            body: { status: r.status === "FROZEN" ? "ACTIVE" : "FROZEN", spendLimitMinor: r.spendLimitMinor },
+            body: { status: r.status === "FROZEN" ? "ACTIVE" : "FROZEN" },
           }),
       },
     ],

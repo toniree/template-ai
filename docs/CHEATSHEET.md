@@ -139,6 +139,12 @@ ALTER TABLE cards ADD COLUMN nickname VARCHAR(64);
   off deliberately; do the mapping inside the `@Transactional` method.
 - **`*IT.java` not running** — fixed here via widened Surefire includes, but it's stock Maven
   behaviour to skip them. Always check the test count, not just `BUILD SUCCESS`.
+- **Primitive fields in a request record** — `long`/`int`/`boolean` default to `0`/`false` when the
+  caller omits them, and `@PositiveOrZero` happily accepts `0`. A `PATCH {"status":"FROZEN"}` then
+  silently wipes the spend limit. Box them (`Long`) and use `@NotNull` for required.
+- **A catch-all `@ExceptionHandler(Exception.class)`** intercepts Spring MVC's own exceptions, so
+  bad path variables, bad query params, unknown routes, and wrong verbs all become 500 instead of
+  400/404/405. Extend `ResponseEntityExceptionHandler` and override only what you want to reshape.
 - **`@Lock` silently doing nothing** — it applies on a *derived* query method
   (`findWithLockById`); pair it with an explicit `@Query` and Spring Data emits plain SQL with no
   `for update`, no warning, no error. Any read-modify-write rule you "protected" that way is still
