@@ -1,5 +1,6 @@
 package com.templateai.sandbox.common.exception;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
@@ -12,6 +13,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private final Clock clock;
+
+    public GlobalExceptionHandler(Clock clock) {
+        this.clock = clock;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
@@ -32,7 +39,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, List<String> details) {
-        ApiError body = new ApiError(Instant.now(), status.value(), status.getReasonPhrase(), message, details);
+        ApiError body = new ApiError(Instant.now(clock), status.value(), status.getReasonPhrase(), message, details);
         return ResponseEntity.status(status).body(body);
     }
 }

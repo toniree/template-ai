@@ -32,9 +32,15 @@ Product Mindset - Do you have opinions about the products you build?
 ```
 sandbox/src/main/java/com/templateai/sandbox/
   common/exception/     ApiError, ResourceNotFoundException, GlobalExceptionHandler
+  common/config/        ClockConfig (injectable java.time.Clock bean, for testable timestamps)
+  common/logging/       RequestLoggingFilter (logs method, path, status, duration per request)
   widget/                WidgetDto, WidgetService (interface), WidgetController
   widget/jpa/            WidgetEntity, WidgetJpaRepository, JpaWidgetService   (@Profile({"h2","postgres"}))
 ```
+
+Reusable prompt templates for common ask-Claude-to-do-X requests during the interview live in
+`/prompts` at the repo root (`crud.md`, `controller.md`, `repository.md`, `tests.md`,
+`algorithms.md`, `refactor.md`) — written in advance so you're not improvising prompts live.
 
 `Widget` is a throwaway example resource that demonstrates the full pattern (DTO validation,
 not-found handling, JPA persistence). Delete it once the real interview prompt lands, or copy the
