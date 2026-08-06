@@ -14,7 +14,20 @@ target/
 .sts4-cache
 
 ### IntelliJ IDEA ###
-.idea
+# Mostly personal/machine state, but a few project-level files are worth checking in so a fresh
+# clone opens in IntelliJ already wired up: the H2 data source (kills the "unresolved column"
+# false-positive on JPA/@Table/@JoinColumn strings), SDK/compiler settings, and the run configs.
+.idea/*
+!.idea/.gitignore
+!.idea/dataSources.xml
+!.idea/db-forest-config.xml
+!.idea/misc.xml
+!.idea/compiler.xml
+!.idea/vcs.xml
+!.idea/encodings.xml
+!.idea/jarRepositories.xml
+!.idea/runConfigurations/
+!.idea/runConfigurations/**
 *.iws
 *.iml
 *.ipr
