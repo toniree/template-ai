@@ -17,7 +17,9 @@ buildNumber.properties
 .classpath
 
 # IDE / OS noise
-.idea/
+# Excluding contents (.idea/*) rather than the directory itself, so sandbox/.gitignore can re-include
+# its own project-level files — a directory-level exclude here would block that at any depth.
+.idea/*
 *.iml
 .vscode/
 .DS_Store
