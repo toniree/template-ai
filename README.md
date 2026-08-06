@@ -23,7 +23,9 @@ your pre-flight, not at 9:59 on interview morning; see
 
 | | |
 |---|---|
+| [`docs/PROBLEM_TEMPLATE.md`](docs/PROBLEM_TEMPLATE.md) | Paste your design notes in; the agent writes back MVP scope, the critical invariant, and what's out of scope. |
 | [`CLAUDE.md`](CLAUDE.md) | The working agreement the agent reads every session. Read it once yourself. |
+| [`docs/ARCHITECTURE_TEMPLATE.md`](docs/ARCHITECTURE_TEMPLATE.md) | Fill in as you build; it's the page you talk from at the end. |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | The AI round: pre-flight, minute-by-minute, how to negotiate scope. |
 | [`docs/SYSTEM-DESIGN.md`](docs/SYSTEM-DESIGN.md) | The design round: clarifying questions, the scale arithmetic, fintech data models, failure modes. |
 | [`prompts/`](prompts/README.md) | Six copy-paste prompts, ordered by when you use them. |
@@ -54,17 +56,41 @@ stored rather than thrown away, because the decline history *is* the product.
 | One typed error shape for every failure, correct 4xx for malformed requests | `common/GlobalExceptionHandler` |
 | True partial `PATCH` — omitted fields are left alone, not zeroed | `CardService.update` |
 | Capped pagination behind a stable envelope | `common/PageResponse` |
+| Caller identity behind one swappable class, not threaded through signatures | `common/CurrentUser` |
+
+## Reusable test support
+
+`src/test/java/…/support/` — the parts that are slow to write correctly under time pressure:
+
+| | |
+|---|---|
+| `ApiIntegrationTest` | Base class: `http` (MockMvc), `json`, the `test` profile, and `as(userId)` to call as a principal. Extend it and start writing assertions. |
+| `Concurrently` | Fires N overlapping attempts at one row and counts winners — `Concurrently.run(8, attempt).assertExactlyOneWon()`. The test that proves your invariant actually holds, and the one interviewers remember. |
+| `MutableClock` | A `Clock` you advance by hand, so a five-minute expiry rule costs no wall-clock time to test. `@Import(MutableClock.Config.class)`. |
+
+All three are covered by their own tests (`SupportTest`, `MutableClockIT`), so a green suite means
+the helpers themselves work, not just your code.
+
+## Identity
+
+`common/CurrentUser` reads an `X-User-Id` header — inject it, call `require()`, get the id or a 401.
+
+It is **not authentication**: the caller supplies the header, so anyone can claim any identity. It
+exists so that business code has exactly one place to ask "who is calling", which means swapping in
+a verified JWT or session later touches `CurrentUser.find()` and nothing else. Say that out loud
+rather than describing the app as having auth — the shortcut is fine, pretending it isn't one is not.
 
 ## Layout
 
 ```
 CLAUDE.md            agent working agreement — loaded automatically
-docs/                runbook, system-design prep, cheatsheet
+docs/                PROBLEM_TEMPLATE, ARCHITECTURE_TEMPLATE, runbook,
+                     system-design prep, cheatsheet
 prompts/             00-kickoff → 05-endgame
 sandbox/
   src/main/java/com/templateai/sandbox/
     common/          ApiError, ApiException, GlobalExceptionHandler, PageResponse,
-                     AppConfig (Clock), RequestLoggingFilter
+                     CurrentUser, AppConfig (Clock), RequestLoggingFilter  ← reusable
     card/            Card, CardRepository, CardDtos, CardService, CardController
     transaction/     Transaction, TransactionRepository, TransactionDtos,
                      TransactionService, TransactionController
@@ -72,10 +98,15 @@ sandbox/
   src/main/resources/static/
     app.js           config-driven UI — a screen is one entry in RESOURCES
     index.html, styles.css
-  src/test/…         CardApiIT, TransactionApiIT — copy these for new features
+  src/test/java/…/
+    support/         ApiIntegrationTest, Concurrently, MutableClock         ← reusable
+    card/, transaction/   CardApiIT, TransactionApiIT — copy these for new features
 ```
 
 One flat package per feature, five files, no `impl/` or `mapper/` layers. Copy the shape.
+
+The two `← reusable` directories know nothing about any domain and survive every reset. Everything
+else is sample and is meant to be replaced.
 
 ## If the interview isn't about cards
 
