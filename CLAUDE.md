@@ -21,6 +21,60 @@ If you genuinely can't fit the full contract, cut it **loudly, not silently**: i
 shape for the core path and open your response with the one line "I did not implement X." A
 reviewer forgives a stated gap; they do not forgive discovering it themselves.
 
+## Starting a new problem
+
+I will hand you a system design — statement, functional and nonfunctional requirements, entities,
+API, data flow, high-level design, deep dive. It will be **rough, partial, and written fast**. Some
+of it will be contradictory. That is normal; it is interview notes, not a spec.
+
+Work through it in this order. Steps 1–3 are one short response, not a document:
+
+1. **Read the repo before changing it.** `common/` already has the error contract, the `Clock`
+   bean, and `CurrentUser`; `support/` already has the test helpers. Reusing them is faster than
+   anything you would write, and re-inventing one in parallel is the most common way this scaffold
+   gets worse.
+2. **Restate the requirements in your own words, numbered**, and name **the critical business
+   invariant in one sentence** — the thing that must never be violated. "A seat is booked by at
+   most one user." Almost every problem worth setting has exactly one, and it is what the
+   interviewer is really grading.
+3. **Split the work three ways** and say which is which:
+   - *MVP behaviour* — what must actually run.
+   - *Interview shortcuts* — the deliberate simplifications (`X-User-Id` instead of auth, seeded
+     fixtures instead of an admin CRUD, a stubbed payment that always succeeds).
+   - *Production extensions* — described, never built.
+4. **Give a short slice plan.** Three to five vertical slices, ordered so each one is demoable on
+   its own. Not a layer plan — never "all the entities, then all the services".
+5. **Build one slice at a time**, end to end: persistence → service → endpoint → test → UI.
+6. **Run the tests after each slice** and report the real numbers.
+7. **Say what you deferred** at the end, unprompted.
+
+Fill gaps with the simplest reasonable assumption and state it in one line. Do not interview me
+back — one genuinely blocking question is fine, five is a waste of the clock.
+[`docs/PROBLEM_TEMPLATE.md`](docs/PROBLEM_TEMPLATE.md) is the long form of all this if I hand you
+notes and ask you to normalise them first.
+
+## Infrastructure: what to reach for
+
+Work down this list and **stop at the first thing that satisfies the requirement**:
+
+1. **A synchronous, in-process call.** Almost always the answer.
+2. **A relational transaction** — the tool for consistency. Constraints, conditional updates, and
+   locks live here.
+3. **A database-backed job** — a table with a status column and a claim query, for work that must
+   outlive the request.
+4. **An external queue, cache, stream, or search cluster** — only when a stated requirement makes
+   the first three genuinely insufficient.
+
+Do not add Kafka, RabbitMQ, Redis, Elasticsearch, Docker, Kubernetes, microservices, distributed
+locks, event sourcing, CQRS, a second database, real payments, or a real identity provider. Not
+because they are wrong — because in a 50-minute build each one costs setup time, adds a failure
+mode I have to explain, and moves the enforcement of my invariant somewhere I cannot demo.
+
+If the design I gave you names one of them, that is a **talking point, not a task**: implement the
+behaviour against the database and write the scaling path into the architecture notes. Say "I would
+put this behind a queue at X throughput; below that it is a transaction" — that answer scores
+better than a half-wired broker.
+
 ## Never do these without being asked
 
 - Interfaces with a single implementation. Inject the concrete `@Service`.
@@ -37,10 +91,18 @@ reviewer forgives a stated gap; they do not forgive discovering it themselves.
 
 ```
 com.templateai.sandbox
-├── common/   ApiError, ApiException, GlobalExceptionHandler,
+├── common/   ApiError, ApiException, GlobalExceptionHandler, CurrentUser,
 │             AppConfig (Clock bean), RequestLoggingFilter
 └── task/     Task, TaskRepository, TaskDtos, TaskService, TaskController
+
+src/test/java/…
+├── support/  ApiIntegrationTest, Concurrently, MutableClock   ← reuse, don't reinvent
+└── task/     TaskApiIT
 ```
+
+`common/` and `support/` are the reusable half of the scaffold and know nothing about any domain.
+**Leave them alone** unless the change is clearly justified — and if you do change one, say so
+explicitly, because everything else depends on them.
 
 Five files is the **default shape for a persisted CRUD resource**, not a quota. Omit any layer with
 no responsibility: a computed endpoint that stores nothing needs no entity or repository; a service
@@ -55,39 +117,35 @@ implementation, and abstractions added for a caller that doesn't exist yet.
 `jpa/`, no `mapper/` subpackages. All request/response records for a feature live in one
 `<Feature>Dtos.java`.
 
-## Optional pattern: current-user profile
+## Who is calling — already built, don't rebuild it
 
-Only add this when the stated requirement calls for per-user data — "my X", a profile screen, or
-anything scoped to "who's using the app right now." Don't add it speculatively.
+`common/CurrentUser` reads `X-User-Id` and is **the only place identity comes from**. Inject it and
+call `currentUser.require()` (the id, or 401). Do not add `@RequestHeader` parameters to controllers
+and thread a user id down through service signatures — that is the version that has to be rewritten
+when auth becomes real, which is exactly what this class exists to prevent.
 
-**Static user, not auth.** No login, password, or session. A `user/` package holds `User` (id,
-name, email — nothing else unless asked), `UserRepository`, `UserDtos` (`UserResponse`),
-`UserService` (`list()`, and a `public User find(id)` other services can call to resolve/validate
-an owner), `UserController` (`GET /api/users` for the picker, `GET /api/users/{id}`). Seed 2-3
-users in `DemoData`.
+It is **not authentication**: the caller supplies the header, so anyone can claim any id. Say that
+plainly if asked, and never describe the app as having auth. Swapping in a verified JWT or session
+later is a change to `CurrentUser.find()` and nothing else.
 
-**Frontend picks the user, not a login form.** On load, if no user is chosen (checked via
-`localStorage`), show a blocking picker modal listing the static users. Once chosen, every request
-carries an `X-User-Id` header (add it once inside the shared `request()` helper — don't thread it
-through every call site). A small profile menu in the topnav shows the current user's name/email
-and lets them switch or log out (log out just clears `localStorage` and reopens the picker).
+**A `User` entity is a separate decision.** `CurrentUser` gives you an id; that is enough for
+ownership columns and `/mine` queries. Only add a `user/` package when the problem actually needs
+user *records* — a profile screen, a name to display, a picker. If it does: `User` (id, name, email,
+nothing more unless asked), repository, `UserService.find(id)` for other services to validate an
+owner, and `GET /api/users` to back a picker. Seed two or three in `DemoData`.
 
-**Scoping owned entities.** Add a nullable `@ManyToOne(fetch = LAZY) User owner` to whichever
-entity the requirement is about (don't invent a join table). Read the owner id from the
-`X-User-Id` header in the controller (`@RequestHeader("X-User-Id") Long userId`, required — a
-missing header is correctly a 400 via Spring's own `MissingRequestHeaderException`, no extra
-validation code needed) and validate it with `UserService.find(userId)` before using it. Add one
-`findByOwnerId...` query and a `GET /api/<feature>/mine` endpoint backing the "my X" screen.
+**Scoping owned entities.** Add a nullable `@ManyToOne(fetch = LAZY) User owner` (or a plain
+`ownerId` column if there is no `User` entity) to the entity the requirement is about — never a join
+table. Add one `findByOwnerId...` query and a `GET /api/<feature>/mine` endpoint.
 
 **Don't let the owner's name leak into the public list.** The moment an entity has an owner, the
-browse endpoint that lists those entities is showing one user's data to every other user — see
-**Response records**. The public list gets status only; the owner's name and email belong to
-`/mine`, whose caller already knows them.
+browse endpoint listing those entities is showing one user's data to every other user — see
+**Response records**. The public list gets status only; names and emails belong to `/mine`, whose
+caller already knows them.
 
-**Say what it stands in for.** Put one comment on the header parameter noting that `X-User-Id` is a
-stand-in for an authenticated principal and would come from a verified session or token in
-production — never from a caller-supplied header. It costs a line and it is the first thing a
-reviewer asks about.
+**Frontend, when the problem wants a visible identity:** no login form. On load, if `localStorage`
+has no chosen user, show a blocking picker; afterwards send the header from the one shared
+`request()` helper, never from each call site. A topnav menu switches user or clears it.
 
 **Gotcha:** if you add a `hidden` modal/overlay, don't give its class an unconditional `display:
 ...` rule — that beats the `hidden` attribute's default `display: none` in an author stylesheet
@@ -145,31 +203,22 @@ did not, silently. `show-sql` is on under the `h2` profile — confirm `for upda
 generated SQL.
 
 **Prove it with a concurrent test, not a sequential one.** Two calls one after the other only prove
-the second sees the first's result — that passes just as happily against a racy read-then-write. The
-test that earns the claim fires N threads at one row simultaneously and asserts exactly one won:
+the second sees the first's result — that passes just as happily against a racy read-then-write.
+`support/Concurrently` fires N overlapping attempts and counts the winners:
 
 ```java
-int threads = 8;
-var start = new CountDownLatch(1);          // release everyone at once
-var wins = new AtomicInteger();
-var pool = Executors.newFixedThreadPool(threads);
-for (int i = 0; i < threads; i++) {
-    pool.submit(() -> {
-        start.await();
-        // call the SERVICE (or MockMvc), catch ApiException, count successes
-    });
-}
-start.countDown();
-pool.shutdown();
-pool.awaitTermination(10, SECONDS);
-assertThat(wins.get()).isEqualTo(1);        // and re-read the row to confirm final state
+Concurrently.run(8, () ->
+        http.perform(post("/api/seats/1/book").with(as(userId)))
+                .andReturn().getResponse().getStatus() == 200)
+    .assertExactlyOneWon();          // or .assertWinnersWere(n) for a capacity limit
 ```
 
-Traps that make this test lie: the test method must **not** be `@Transactional` (rollback isolation
-hides the commits the other threads need to see); each thread needs its own transaction, so go
-through the service or HTTP, never a repository call inside the test's own transaction; and assert
-the losers were rejected for the right reason (409), not swallowed. One such test is worth more than
-five happy-path ones when the problem is about contention.
+Traps that make this test lie, all three of which it is your job to check: the test class must
+**not** be `@Transactional` (rollback isolation hides the commits the other threads need to see);
+each attempt needs its own transaction, so go through MockMvc or the service, never a repository
+call inside the test's own transaction; and the losers must have failed for the right reason (409),
+not been swallowed. One such test is worth more than five happy-path ones when the problem is about
+contention — it is usually the single most valuable test in the build.
 
 **Numbers that must be exact** — counts, quantities, anything summed or compared against a limit:
 integer types, never `double` or `float`. Compare a limit as `amount > limit - used`, never
@@ -190,6 +239,16 @@ caller can't distinguish them. Check the parent first (the service that owns it 
 entities, never `@Data`. `@Enumerated(EnumType.STRING)`, never ordinal.
 
 **Time** — inject the `Clock` bean and call `Instant.now(clock)`. Never `Instant.now()` directly.
+Anything with an expiry, a cutoff, or a TTL is then testable by advancing
+`support/MutableClock` instead of sleeping: `@Import(MutableClock.Config.class)`, autowire it, call
+`clock.advance(Duration.ofMinutes(5))`. A direct `Instant.now()` ignores that entirely, which is the
+practical reason for the rule — a five-minute hold rule is otherwise a five-minute test.
+
+**Tests** — extend `support/ApiIntegrationTest` for anything HTTP-shaped: it brings `http`
+(MockMvc), `json`, the `test` profile, and `as(userId)` for calling as a principal. Prefer a few
+integration tests over real HTTP and a real database to many mocked unit tests — a mocked service
+test mostly asserts that you wrote the mock correctly. The suite shares one database, so assert on
+rows your test created, never on table-wide counts.
 
 **Frontend** — `static/app.js` is a single bespoke screen, deliberately not a config-driven
 renderer. Retarget it by changing the constants at the top, the `<thead>` in `index.html`, and the
@@ -238,6 +297,13 @@ missing or wrong, say so in one sentence — don't silently build extra scope to
 
 If I ask for a new feature while a **stated requirement is still unimplemented**, build what I asked
 for, but open with one line naming the gap ("note: reserve/confirm is still collapsed into one
-booking call"). I may well have reprioritised on purpose — but I can only make that call if you
+call"). I may well have reprioritised on purpose — but I can only make that call if you
 surface it, and polish added on top of a missing core requirement is the pattern that reads worst
 in review.
+
+**Never claim a result you did not observe.** Do not say tests pass, an endpoint works, or the UI
+renders unless you ran it and read the output — report the actual count and the actual outcome. If
+something failed, say so with the error. If you could not run it at all — offline Maven, a port in
+use, a missing tool — say that instead of inferring; "I could not execute the suite" is a fine
+answer and a fabricated green one is not recoverable, because I will repeat it to an interviewer.
+The same goes for reviews and analysis: distinguish what you executed from what you read.

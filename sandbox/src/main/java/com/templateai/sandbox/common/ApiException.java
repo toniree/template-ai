@@ -20,6 +20,16 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.NOT_FOUND, message);
     }
 
+    /** No usable caller identity — see {@link CurrentUser}. Not "you may not", which is 403. */
+    public static ApiException unauthorized(String message) {
+        return new ApiException(HttpStatus.UNAUTHORIZED, message);
+    }
+
+    /** Identity is known but not allowed to touch this row. Distinct from 404 on purpose. */
+    public static ApiException forbidden(String message) {
+        return new ApiException(HttpStatus.FORBIDDEN, message);
+    }
+
     /** Well-formed request that violates a business rule (not a schema/validation failure). */
     public static ApiException badRequest(String message) {
         return new ApiException(HttpStatus.BAD_REQUEST, message);

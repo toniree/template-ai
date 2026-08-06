@@ -23,8 +23,10 @@ your pre-flight, not on interview morning; [`docs/RUNBOOK.md`](docs/RUNBOOK.md) 
 | | |
 |---|---|
 | [`prompts/QUICK.md`](prompts/QUICK.md) | Four prompts covering the whole interview. Keep this one open. |
+| [`docs/PROBLEM_TEMPLATE.md`](docs/PROBLEM_TEMPLATE.md) | Paste your design notes in; the agent writes back MVP scope, the critical invariant, and what's out of scope. |
 | [`CLAUDE.md`](CLAUDE.md) | The working agreement the agent reads every session. Read it once yourself. |
 | [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Pre-flight, minute-by-minute plan, checkpoints, recovery moves. |
+| [`docs/ARCHITECTURE_TEMPLATE.md`](docs/ARCHITECTURE_TEMPLATE.md) | Fill in as you build; it's the page you talk from at the end. |
 | [`prompts/`](prompts/README.md) | The long-form prompts, for when a step needs more structure. |
 | [`docs/CHEATSHEET.md`](docs/CHEATSHEET.md) | Spring/JPA/HTTP reference and the gotchas that cost minutes. |
 
@@ -56,24 +58,53 @@ a product.
 | Filtering pushed into SQL, not done in Java | `TaskRepository` |
 | Integration tests over real HTTP and a real database, no mocks | `TaskApiIT`, `ErrorContractIT` |
 | One request log line per API call: method, path, status, duration | `common/RequestLoggingFilter` |
+| Caller identity behind one swappable class, not threaded through signatures | `common/CurrentUser` |
+
+## Reusable test support
+
+`src/test/java/…/support/` — the parts that are slow to write correctly under time pressure:
+
+| | |
+|---|---|
+| `ApiIntegrationTest` | Base class: `http` (MockMvc), `json`, the `test` profile, and `as(userId)` to call as a principal. Extend it and start writing assertions. |
+| `Concurrently` | Fires N overlapping attempts at one row and counts winners — `Concurrently.run(8, attempt).assertExactlyOneWon()`. The test that proves your invariant actually holds, and the one interviewers remember. |
+| `MutableClock` | A `Clock` you advance by hand, so a five-minute expiry rule costs no wall-clock time to test. `@Import(MutableClock.Config.class)`. |
+
+All three are covered by their own tests (`SupportTest`, `MutableClockIT`), so a green suite means
+the helpers themselves work, not just your code.
+
+## Identity
+
+`common/CurrentUser` reads an `X-User-Id` header — inject it, call `require()`, get the id or a 401.
+
+It is **not authentication**: the caller supplies the header, so anyone can claim any identity. It
+exists so that business code has exactly one place to ask "who is calling", which means swapping in
+a verified JWT or session later touches `CurrentUser.find()` and nothing else. Say that out loud
+rather than describing the app as having auth — the shortcut is fine, pretending it isn't one is not.
 
 ## Layout
 
 ```
 CLAUDE.md            agent working agreement — loaded automatically
-docs/                runbook, cheatsheet
+docs/                PROBLEM_TEMPLATE, ARCHITECTURE_TEMPLATE, runbook, cheatsheet
 prompts/             00-kickoff → 07-endgame
 sandbox/
   src/main/java/com/templateai/sandbox/
-    common/          ApiError, ApiException, GlobalExceptionHandler,
-                     AppConfig (Clock), RequestLoggingFilter
+    common/          ApiError, ApiException, GlobalExceptionHandler, CurrentUser,
+                     AppConfig (Clock), RequestLoggingFilter        ← reusable, leave alone
     task/            Task, TaskRepository, TaskDtos, TaskService, TaskController
     DemoData.java    seeds the h2 profile so the UI is never empty
   src/main/resources/static/
     app.js           the whole UI — one screen, written directly, no renderer framework
     index.html, styles.css
-  src/test/…         TaskApiIT (copy this for new features), ErrorContractIT (keep as-is)
+  src/test/java/…/
+    support/         ApiIntegrationTest, Concurrently, MutableClock  ← reusable, leave alone
+    task/            TaskApiIT (copy this for new features)
+    common/          ErrorContractIT (keep as-is, just repoint its paths)
 ```
+
+The two `← reusable` directories know nothing about any domain and survive every reset. Everything
+else is sample and is meant to be replaced.
 
 One flat package per feature, no `impl/` or `mapper/` layers. Five files is the default shape for a
 persisted CRUD resource — drop any layer that has nothing to do, and add a concrete collaborator
@@ -120,8 +151,22 @@ state cannot be returned to.
 
 ## Deliberately not here
 
-Auth, authorization, rate limiting, pagination, caching, async/queues, containerisation, an
-external database, a frontend build step, and a CI pipeline.
+Auth, authorization, rate limiting, caching, async/queues, containerisation, an external database,
+a frontend build step, and a CI pipeline. Nothing in the default workflow needs Docker, a network,
+or any service you have to start yourself — `./mvnw -o spring-boot:run` is the whole setup.
+
+That is a scoping decision, not an oversight, and the reasoning is worth being able to state:
+
+> 1. A synchronous in-process call. 2. A relational transaction — where constraints, conditional
+> updates, and locks live. 3. A database-backed job table for work outliving the request.
+> 4. An external queue, cache, stream, or search cluster **only** when the first three genuinely
+> can't satisfy a stated requirement.
+
+In a 50-minute build, each piece of infrastructure above line 3 costs setup time, adds a failure
+mode you have to explain, and moves your critical invariant somewhere you can't demo. If the design
+names Kafka or Redis, implement the behaviour against the database and describe the scaling path in
+[`docs/ARCHITECTURE_TEMPLATE.md`](docs/ARCHITECTURE_TEMPLATE.md). "I'd put this behind a queue past
+X throughput; below that it's a transaction" beats a half-wired broker.
 
 
 ## Profiles
