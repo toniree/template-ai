@@ -35,6 +35,34 @@ com.templateai.sandbox
 Copy that shape for a new feature. No `impl/`, no `jpa/`, no `mapper/` subpackages.
 All request/response records for a feature live together in one `<Feature>Dtos.java`.
 
+## Optional pattern: current-user profile
+
+Only add this when the stated requirement calls for per-user data — "my X", a profile screen, or
+anything scoped to "who's using the app right now." Don't add it speculatively.
+
+**Static user, not auth.** No login, password, or session. A `user/` package holds `User` (id,
+name, email — nothing else unless asked), `UserRepository`, `UserDtos` (`UserResponse`),
+`UserService` (`list()`, and a `public User find(id)` other services can call to resolve/validate
+an owner), `UserController` (`GET /api/users` for the picker, `GET /api/users/{id}`). Seed 2-3
+users in `DemoData`.
+
+**Frontend picks the user, not a login form.** On load, if no user is chosen (checked via
+`localStorage`), show a blocking picker modal listing the static users. Once chosen, every request
+carries an `X-User-Id` header (add it once inside the shared `request()` helper — don't thread it
+through every call site). A small profile menu in the topnav shows the current user's name/email
+and lets them switch or log out (log out just clears `localStorage` and reopens the picker).
+
+**Scoping owned entities.** Add a nullable `@ManyToOne(fetch = LAZY) User owner` to whichever
+entity the requirement is about (don't invent a join table). Read the owner id from the
+`X-User-Id` header in the controller (`@RequestHeader("X-User-Id") Long userId`, required — a
+missing header is correctly a 400 via Spring's own `MissingRequestHeaderException`, no extra
+validation code needed) and validate it with `UserService.find(userId)` before using it. Add one
+`findByOwnerId...` query and a `GET /api/<feature>/mine` endpoint backing the "my X" screen.
+
+**Gotcha:** if you add a `hidden` modal/overlay, don't give its class an unconditional `display:
+...` rule — that beats the `hidden` attribute's default `display: none` in an author stylesheet
+(same specificity, later rule wins). Add `.your-overlay[hidden] { display: none; }` explicitly.
+
 ## Conventions that are not negotiable
 
 **Money** — `long ...Minor` (cents) plus a 3-letter `currency`. Never `double`, never `float`.
