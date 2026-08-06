@@ -175,6 +175,16 @@ X throughput; below that it's a transaction" beats a half-wired broker.
 |---|---|
 | `h2` (default) | in-memory, seeded on boot, zero setup — what you demo on |
 | `test` | isolated in-memory database, no seed data, quiet logs |
+| `postgres` | optional, and never needed for the default workflow — see below |
+
+The `postgres` profile exists for the one case H2 can't answer: real locking under contention,
+constraint timing, isolation levels, or native SQL. It is the only thing here that wants Docker,
+and you should not reach for it during an interview.
+
+```bash
+docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
+./mvnw -o spring-boot:run -Dspring-boot.run.profiles=postgres
+```
 
 H2 runs in `MODE=PostgreSQL`, which reduces the common syntax differences — identifier quoting,
 `LIMIT`/`OFFSET`, `COALESCE`, sequence and identity declarations — so ordinary JPA and JPQL written

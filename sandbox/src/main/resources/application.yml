@@ -52,6 +52,33 @@ spring:
       path: /h2-console
 
 ---
+# ---- postgres: optional, and never needed for the default workflow. ----------
+# Only reach for this if the problem genuinely depends on real PostgreSQL behaviour rather than
+# syntax — row locking under contention, constraint timing, isolation levels, or native SQL. H2's
+# MODE=PostgreSQL covers the syntax; it does not reproduce any of those.
+#
+#   docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
+#   ./mvnw -o spring-boot:run -Dspring-boot.run.profiles=postgres
+#
+# ddl-auto: update rather than create-drop, so a restart doesn't discard the data you just made.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sandbox
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+---
 # ---- test: isolated database, quiet logs, no demo seed. ----------------------
 spring:
   config:

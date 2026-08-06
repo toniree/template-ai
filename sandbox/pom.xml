@@ -49,6 +49,12 @@
 			<artifactId>h2</artifactId>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Only used by the optional "postgres" profile; the default h2 workflow never loads it -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
 		<!-- API docs / quick manual exploration during the interview -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
