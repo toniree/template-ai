@@ -129,6 +129,18 @@ select.status[data-status="TODO"] { color: var(--muted); }
 select.status[data-status="IN_PROGRESS"] { color: var(--warn); }
 select.status[data-status="DONE"] { color: var(--success); }
 
+/* ---- detail view ---- */
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 8px 20px;
+  margin: 0;
+  font-size: 14px;
+}
+.detail-grid dt { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; align-self: center; }
+.detail-grid dd { margin: 0; overflow-wrap: anywhere; }
+
 /* ---- feedback ---- */
 
 .error {

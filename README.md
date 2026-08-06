@@ -66,12 +66,14 @@ a product.
 
 | | |
 |---|---|
-| `ApiIntegrationTest` | Base class: `http` (MockMvc), `json`, the `test` profile, and `as(userId)` to call as a principal. Extend it and start writing assertions. |
+| `ApiIntegrationTest` | Base class: `http` (MockMvc), `json`, the `test` profile, `postJson`/`patchJson`, and `as(userId)` to call as a principal. Extend it and start writing assertions. |
+| `ApiErrors` | One-line outcome assertions — `created()`, `validationError("title must not be blank")`, `notFound()`, `conflict()`, `unauthorized()`. Checks the whole error body, not just the status line. |
 | `Concurrently` | Fires N overlapping attempts at one row and counts winners — `Concurrently.run(8, attempt).assertExactlyOneWon()`. The test that proves your invariant actually holds, and the one interviewers remember. |
 | `MutableClock` | A `Clock` you advance by hand, so a five-minute expiry rule costs no wall-clock time to test. `@Import(MutableClock.Config.class)`. |
 
-All three are covered by their own tests (`SupportTest`, `MutableClockIT`), so a green suite means
-the helpers themselves work, not just your code.
+`TaskApiIT` uses all of these — it is the file to copy for a new feature. The helpers are themselves
+covered by `SupportTest` and `MutableClockIT`, so a green suite means the tools work, not just your
+code.
 
 ## Identity
 
@@ -98,7 +100,8 @@ sandbox/
     app.js           the whole UI — one screen, written directly, no renderer framework
     index.html, styles.css
   src/test/java/…/
-    support/         ApiIntegrationTest, Concurrently, MutableClock  ← reusable, leave alone
+    support/         ApiIntegrationTest, ApiErrors, Concurrently,
+                     MutableClock                                    ← reusable, leave alone
     task/            TaskApiIT (copy this for new features)
     common/          ErrorContractIT (keep as-is, just repoint its paths)
 ```
@@ -180,6 +183,13 @@ X throughput; below that it's a transaction" beats a half-wired broker.
 The `postgres` profile exists for the one case H2 can't answer: real locking under contention,
 constraint timing, isolation levels, or native SQL. It is the only thing here that wants Docker,
 and you should not reach for it during an interview.
+
+**Schema:** Hibernate generates it from the entities — `create-drop` on `h2` and `test`, `update` on
+`postgres`. There is no Flyway or Liquibase, deliberately: in a 50-minute build the schema changes
+every few minutes, and hand-writing a migration for each change buys nothing when the database is
+thrown away on restart. Say that if asked — "versioned migrations from the first release, generated
+schema while the model is still moving" is the honest answer, and adding Flyway here would cost
+minutes per entity change for no benefit inside the hour.
 
 ```bash
 docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16

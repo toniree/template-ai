@@ -66,6 +66,23 @@
         </table>
       </div>
     </section>
+
+    <!--
+      Detail view. Second screen shape: fetch one record by id and show fields a list can't fit.
+      Kept as its own panel and its own render function rather than being folded into the table —
+      copy this block for a detail screen, don't try to make one renderer serve both.
+    -->
+    <section id="detail-panel" class="panel" hidden>
+      <div class="panel-header">
+        <h2 id="detail-title">Task</h2>
+        <div class="panel-actions">
+          <button id="close-detail" type="button" class="btn btn-secondary btn-small">Close</button>
+        </div>
+      </div>
+
+      <p id="detail-error" class="error" role="alert" hidden></p>
+      <dl id="detail-fields" class="detail-grid"></dl>
+    </section>
   </main>
 
   <script src="/app.js"></script>

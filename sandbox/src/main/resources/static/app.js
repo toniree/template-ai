@@ -68,6 +68,11 @@ function render() {
   body.replaceChildren(...tasks.map(taskRow));
 }
 
+/** Placeholder row while a fetch is in flight, so the table never looks empty-but-loaded. */
+function renderLoading() {
+  el("task-rows").innerHTML = `<tr><td colspan="6" class="empty">Loading…</td></tr>`;
+}
+
 function taskRow(task) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
@@ -81,19 +86,65 @@ function taskRow(task) {
       </select>
     </td>
     <td class="muted">${timestamp(task.updatedAt)}</td>
-    <td class="row-actions"><button type="button" class="btn btn-secondary btn-small">Delete</button></td>`;
+    <td class="row-actions">
+      <button type="button" class="btn btn-secondary btn-small" data-act="view">View</button>
+      <button type="button" class="btn btn-secondary btn-small" data-act="delete">Delete</button>
+    </td>`;
 
   const status = tr.querySelector("select");
   status.addEventListener("change", () =>
     act(status, () => request(`${API}/${task.id}`, { method: "PATCH", body: { status: status.value } }),
       "Status updated"));
 
-  const remove = tr.querySelector("button");
+  tr.querySelector('[data-act="view"]').addEventListener("click", () => openDetail(task.id));
+
+  const remove = tr.querySelector('[data-act="delete"]');
   remove.addEventListener("click", () =>
     act(remove, () => request(`${API}/${task.id}`, { method: "DELETE" }), "Task deleted"));
 
   return tr;
 }
+
+// ---- detail view ----------------------------------------------------------
+
+/** Fetches one record by id. Its own request and its own render — not a filtered list row. */
+async function openDetail(id) {
+  const panel = el("detail-panel");
+  const error = el("detail-error");
+  const fields = el("detail-fields");
+
+  panel.hidden = false;
+  error.hidden = true;
+  fields.innerHTML = `<div class="empty">Loading…</div>`;
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  try {
+    const task = await request(`${API}/${id}`);
+    el("detail-title").textContent = task.title;
+    fields.replaceChildren(...[
+      ["ID", task.id],
+      ["Title", task.title],
+      ["Description", task.description || "—"],
+      ["Status", STATUS_LABELS[task.status] ?? task.status],
+      ["Created", timestamp(task.createdAt)],
+      ["Updated", timestamp(task.updatedAt)],
+    ].flatMap(([label, value]) => {
+      const dt = document.createElement("dt");
+      dt.textContent = label;
+      const dd = document.createElement("dd");
+      dd.textContent = value;
+      return [dt, dd];
+    }));
+  } catch (err) {
+    fields.replaceChildren();
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+}
+
+el("close-detail").addEventListener("click", () => {
+  el("detail-panel").hidden = true;
+});
 
 /**
  * Runs a row action with the control disabled for the duration, so an impatient double-click is
@@ -118,6 +169,7 @@ async function load() {
   const status = el("status-filter").value;
   const error = el("list-error");
   error.hidden = true;
+  renderLoading();
 
   try {
     tasks = await request(status ? `${API}?status=${status}` : API);

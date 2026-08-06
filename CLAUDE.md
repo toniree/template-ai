@@ -96,7 +96,8 @@ com.templateai.sandbox
 └── task/     Task, TaskRepository, TaskDtos, TaskService, TaskController
 
 src/test/java/…
-├── support/  ApiIntegrationTest, Concurrently, MutableClock   ← reuse, don't reinvent
+├── support/  ApiIntegrationTest, ApiErrors, Concurrently,
+│             MutableClock                                   ← reuse, don't reinvent
 └── task/     TaskApiIT
 ```
 
@@ -245,12 +246,22 @@ Anything with an expiry, a cutoff, or a TTL is then testable by advancing
 practical reason for the rule — a five-minute hold rule is otherwise a five-minute test.
 
 **Tests** — extend `support/ApiIntegrationTest` for anything HTTP-shaped: it brings `http`
-(MockMvc), `json`, the `test` profile, and `as(userId)` for calling as a principal. Prefer a few
-integration tests over real HTTP and a real database to many mocked unit tests — a mocked service
-test mostly asserts that you wrote the mock correctly. The suite shares one database, so assert on
-rows your test created, never on table-wide counts.
+(MockMvc), `json`, the `test` profile, `postJson`/`patchJson`, and `as(userId)` for calling as a
+principal. Assert error outcomes with `support/ApiErrors` — `created()`, `validationError("title
+must not be blank")`, `notFound()`, `conflict()` — which check the whole `ApiError` body rather than
+just the status line, so a handler returning the right code with the wrong shape still fails.
+`TaskApiIT` uses all of it; copy that file. Prefer a few integration tests over real HTTP and a real
+database to many mocked unit tests — a mocked service test mostly asserts that you wrote the mock
+correctly. The suite shares one database, so assert on rows your test created, never on table-wide
+counts.
 
-**Frontend** — `static/app.js` is a single bespoke screen, deliberately not a config-driven
+**Frontend** — the sample shows the three shapes an interview demo needs: a **list** with a filter,
+a **create form** that surfaces field-level validation errors, and a **detail view** that fetches
+one record by id. Both screens show a loading placeholder while a request is in flight and a toast
+on success. Copy whichever shape fits; the detail panel is deliberately its own section with its own
+render function, so a second one is a copy rather than a widened abstraction.
+
+`static/app.js` is bespoke screens, deliberately not a config-driven
 renderer. Retarget it by changing the constants at the top, the `<thead>` in `index.html`, and the
 cells in `taskRow()`. For a second screen, copy what you need; for a different *kind* of screen
 (dashboard, wizard, detail view) write it separately. **Never generalise `app.js` into a framework**
