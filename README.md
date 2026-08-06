@@ -88,19 +88,6 @@ rm -rf sandbox/src/main/java/com/templateai/sandbox/{card,transaction} \
 Then run `prompts/00-kickoff.md`. Everything in `common/`, the error contract, the config-driven
 UI, and the test templates carry over unchanged.
 
-## Handing this off as an archive
-
-Build it from git, not by zipping the working tree — `git archive` ships only tracked files, so
-`target/`, `.idea/`, `__MACOSX/`, and `.DS_Store` cannot leak in:
-
-```bash
-git archive --format=zip --prefix=template-ai/ -o /tmp/template-ai.zip HEAD
-unzip -l /tmp/template-ai.zip | grep -E 'target/|\.idea/|__MACOSX|\.DS_Store' || echo "clean"
-```
-
-macOS Finder's "Compress" adds a `__MACOSX/` sidecar and resource-fork `._*` files; both are
-gitignored here, but the Finder path adds them at zip time regardless. Use the command above.
-
 ## Profiles
 
 | Profile | Use |
