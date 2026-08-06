@@ -124,10 +124,8 @@ tbody tr:hover { background: var(--bg); }
 .empty { text-align: center; color: var(--muted); padding: 28px; }
 .muted { color: var(--muted); font-size: 13px; }
 
-select.status { min-width: 130px; font-size: 13px; font-weight: 600; padding: 4px 8px; }
-select.status[data-status="TODO"] { color: var(--muted); }
-select.status[data-status="IN_PROGRESS"] { color: var(--warn); }
-select.status[data-status="DONE"] { color: var(--success); }
+.book-form { display: flex; gap: 6px; justify-content: flex-end; }
+.book-form input { min-width: 110px; padding: 4px 8px; font-size: 13px; }
 
 /* ---- feedback ---- */
 
@@ -139,6 +137,74 @@ select.status[data-status="DONE"] { color: var(--success); }
   margin: 12px 0 0;
   font-size: 14px;
 }
+
+/* ---- profile ---- */
+
+.profile-toggle {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.profile-toggle:hover { background: var(--surface); }
+
+.profile-menu {
+  position: fixed;
+  top: 56px;
+  right: 24px;
+  width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  padding: 14px;
+  z-index: 20;
+}
+.profile-menu-header { margin-bottom: 12px; }
+.profile-name { font-weight: 600; }
+.profile-menu-section { margin-bottom: 12px; }
+.profile-menu-label { font-size: 12px; color: var(--muted); font-weight: 500; margin-bottom: 6px; }
+.profile-user-list { display: flex; flex-direction: column; gap: 4px; }
+.profile-user-btn {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.profile-user-btn:hover { background: var(--bg); }
+.profile-user-btn.active { border-color: var(--accent); color: var(--accent); font-weight: 500; }
+.profile-logout { width: 100%; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 22, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+.modal-overlay[hidden] { display: none; }
+.modal {
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: var(--shadow);
+}
+.modal h2 { margin: 0; font-size: 18px; }
+.modal .subtitle { margin-bottom: 14px; }
 
 .toasts { position: fixed; top: 68px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
 .toast {

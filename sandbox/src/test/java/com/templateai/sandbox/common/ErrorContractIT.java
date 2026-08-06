@@ -34,7 +34,7 @@ class ErrorContractIT {
 
     @Test
     void unparseablePathVariableIsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/tasks/not-a-number"))
+        mockMvc.perform(get("/api/events/not-a-number"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status", is(400)))
                 .andExpect(jsonPath("$.message", is("Invalid value for 'id'")));
@@ -42,7 +42,7 @@ class ErrorContractIT {
 
     @Test
     void unparseableQueryParameterIsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/tasks").param("status", "NOT_A_STATUS"))
+        mockMvc.perform(get("/api/events/1/tickets").param("status", "NOT_A_STATUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", is("Invalid value for 'status'")));
     }
@@ -56,14 +56,15 @@ class ErrorContractIT {
 
     @Test
     void unsupportedMethodIsMethodNotAllowed() throws Exception {
-        mockMvc.perform(put("/api/tasks/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(put("/api/tickets/1/book").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.status", is(405)));
     }
 
     @Test
     void malformedJsonIsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/tasks")
+        mockMvc.perform(post("/api/tickets/1/book")
+                        .header("X-User-Id", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ not json"))
                 .andExpect(status().isBadRequest())

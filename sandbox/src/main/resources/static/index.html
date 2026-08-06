@@ -3,48 +3,77 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Task Board</title>
+  <title>TicketMaster MVP</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <nav class="topnav">
-    <span class="brand">Task Board</span>
+    <span class="brand">TicketMaster MVP</span>
     <div class="nav-links">
       <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
       <a href="/h2-console" target="_blank" rel="noopener">DB</a>
+      <button id="profile-toggle" type="button" class="profile-toggle" hidden>
+        <span id="profile-toggle-name"></span>
+      </button>
     </div>
   </nav>
+
+  <div id="profile-menu" class="profile-menu" hidden>
+    <div class="profile-menu-header">
+      <div id="profile-name" class="profile-name"></div>
+      <div id="profile-email" class="muted"></div>
+    </div>
+    <div class="profile-menu-section">
+      <div class="profile-menu-label">Switch user</div>
+      <div id="profile-user-list" class="profile-user-list"></div>
+    </div>
+    <button id="profile-logout" type="button" class="btn btn-secondary btn-small profile-logout">Log out</button>
+  </div>
+
+  <div id="user-picker" class="modal-overlay" hidden>
+    <div class="modal">
+      <h2>Who's booking?</h2>
+      <p class="subtitle">Pick a user to continue.</p>
+      <div id="user-picker-list" class="profile-user-list"></div>
+    </div>
+  </div>
 
   <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <main>
     <header class="page-header">
-      <h1>Tasks</h1>
-      <p class="subtitle">The sample screen. Replace it with whatever the interview actually asks for.</p>
+      <h1>Events</h1>
+      <p class="subtitle">Search events, then book an available ticket.</p>
     </header>
 
     <section class="panel">
-      <h2>New task</h2>
-      <form id="create-form" class="form-row">
-        <label>Title
-          <input type="text" name="title" maxlength="200" placeholder="Ship the first slice" required>
-        </label>
-        <label class="grow">Description
-          <input type="text" name="description" maxlength="2000" placeholder="Optional">
-        </label>
-        <button type="submit" class="btn btn-primary">Add task</button>
-      </form>
-      <p id="form-error" class="error" role="alert" hidden></p>
+      <div class="panel-header">
+        <h2>My tickets</h2>
+      </div>
+      <p id="mine-error" class="error" role="alert" hidden></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Event</th>
+              <th>Section</th>
+              <th>Seat</th>
+              <th>Price</th>
+              <th>Booked</th>
+            </tr>
+          </thead>
+          <tbody id="mine-rows"></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="panel">
       <div class="panel-header">
-        <h2>All tasks</h2>
+        <h2>Search</h2>
         <div class="panel-actions">
-          <select id="status-filter" aria-label="Filter by status">
-            <option value="">All statuses</option>
-          </select>
-          <button id="refresh" type="button" class="btn btn-secondary">Refresh</button>
+          <input id="q" type="text" placeholder="Artist, title, or venue">
+          <input id="location" type="text" placeholder="Location">
+          <button id="refresh" type="button" class="btn btn-secondary">Search</button>
         </div>
       </div>
 
@@ -54,15 +83,42 @@
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Updated</th>
+              <th>Event</th>
+              <th>Artist</th>
+              <th>Venue</th>
+              <th>Location</th>
+              <th>When</th>
               <th></th>
             </tr>
           </thead>
-          <tbody id="task-rows"></tbody>
+          <tbody id="event-rows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="detail-panel" class="panel" hidden>
+      <div class="panel-header">
+        <h2 id="detail-title">Event</h2>
+        <div class="panel-actions">
+          <span id="available-count" class="muted"></span>
+          <button id="close-detail" type="button" class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+
+      <p id="detail-error" class="error" role="alert" hidden></p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Section</th>
+              <th>Seat</th>
+              <th>Price</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="ticket-rows"></tbody>
         </table>
       </div>
     </section>

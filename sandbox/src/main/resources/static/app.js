@@ -1,22 +1,19 @@
 /*
- * The whole UI: one screen over one REST resource, written directly against the DOM.
- *
- * Deliberately not a config-driven renderer. At one or two screens the indirection costs more than
- * it saves, and widening a generic renderer to fit an unlike screen (a dashboard, a wizard, a
- * detail view) is the most expensive mistake you can make mid-interview. If you need a second
- * screen, copy the parts you need; if you need a different kind of screen, write it separately.
- *
- * Retargeting this to a new resource: change API, STATUSES/STATUS_LABELS, the <thead> in
- * index.html, and the cells in taskRow(). Everything else is domain-free.
+ * The whole UI: search events, drill into one, book an available ticket. Written directly against
+ * the DOM — deliberately not a config-driven renderer (see CLAUDE.md on app.js).
  */
 
-const API = "/api/tasks";
-const STATUSES = ["TODO", "IN_PROGRESS", "DONE"];
-const STATUS_LABELS = { TODO: "To do", IN_PROGRESS: "In progress", DONE: "Done" };
+const EVENTS_API = "/api/events";
+const TICKETS_API = "/api/tickets";
+const USERS_API = "/api/users";
+const CURRENT_USER_KEY = "currentUserId";
 
 const el = (id) => document.getElementById(id);
 
-let tasks = [];
+let events = [];
+let currentEventId = null;
+let users = [];
+let currentUserId = localStorage.getItem(CURRENT_USER_KEY);
 
 // ---- helpers --------------------------------------------------------------
 
@@ -28,6 +25,8 @@ function escapeHtml(value) {
 const timestamp = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
 
+const money = (cents) => `$${(cents / 100).toFixed(2)}`;
+
 function toast(text, type = "success") {
   const node = document.createElement("div");
   node.className = `toast toast-${type}`;
@@ -38,9 +37,13 @@ function toast(text, type = "success") {
 
 /** Every call goes through here, so the backend's ApiError shape is parsed in exactly one place. */
 async function request(path, { method = "GET", body } = {}) {
+  const headers = {};
+  if (body) headers["Content-Type"] = "application/json";
+  if (currentUserId) headers["X-User-Id"] = currentUserId;
+
   const response = await fetch(path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -57,113 +60,241 @@ async function request(path, { method = "GET", body } = {}) {
   return response.status === 204 ? null : response.json();
 }
 
-// ---- rendering ------------------------------------------------------------
+// ---- profile / current user -------------------------------------------------
 
-function render() {
-  const body = el("task-rows");
-  if (!tasks.length) {
-    body.innerHTML = `<tr><td colspan="6" class="empty">No tasks yet</td></tr>`;
-    return;
-  }
-  body.replaceChildren(...tasks.map(taskRow));
+function currentUser() {
+  return users.find((u) => String(u.id) === String(currentUserId));
 }
 
-function taskRow(task) {
+function selectUser(id) {
+  currentUserId = String(id);
+  localStorage.setItem(CURRENT_USER_KEY, currentUserId);
+  el("user-picker").hidden = true;
+  el("profile-menu").hidden = true;
+  renderProfile();
+  loadMine();
+}
+
+function logout() {
+  currentUserId = null;
+  localStorage.removeItem(CURRENT_USER_KEY);
+  el("profile-menu").hidden = true;
+  renderProfile();
+  openUserPicker();
+}
+
+function userButton(user, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "profile-user-btn" + (String(user.id) === String(currentUserId) ? " active" : "");
+  button.textContent = user.name;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function openUserPicker() {
+  const list = el("user-picker-list");
+  list.replaceChildren(...users.map((u) => userButton(u, () => selectUser(u.id))));
+  el("user-picker").hidden = false;
+}
+
+function renderProfile() {
+  const user = currentUser();
+  el("profile-toggle").hidden = !user;
+  if (!user) return;
+
+  el("profile-toggle-name").textContent = user.name;
+  el("profile-name").textContent = user.name;
+  el("profile-email").textContent = user.email;
+
+  const list = el("profile-user-list");
+  list.replaceChildren(...users.map((u) => userButton(u, () => selectUser(u.id))));
+}
+
+async function loadUsers() {
+  users = await request(USERS_API);
+  renderProfile();
+  if (currentUserId && !currentUser()) {
+    currentUserId = null;
+    localStorage.removeItem(CURRENT_USER_KEY);
+  }
+  if (!currentUserId) {
+    openUserPicker();
+  } else {
+    loadMine();
+  }
+}
+
+el("profile-toggle").addEventListener("click", () => {
+  el("profile-menu").hidden = !el("profile-menu").hidden;
+});
+el("profile-logout").addEventListener("click", logout);
+
+// ---- my tickets ---------------------------------------------------------------
+
+async function loadMine() {
+  if (!currentUserId) return;
+  const error = el("mine-error");
+  error.hidden = true;
+  try {
+    renderMine(await request(`${TICKETS_API}/mine`));
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+}
+
+function renderMine(tickets) {
+  const body = el("mine-rows");
+  if (!tickets.length) {
+    body.innerHTML = `<tr><td colspan="5" class="empty">No tickets booked yet</td></tr>`;
+    return;
+  }
+  body.replaceChildren(...tickets.map((t) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(t.eventTitle)}</td>
+      <td>${escapeHtml(t.section)}</td>
+      <td>${escapeHtml(t.seatLabel)}</td>
+      <td>${money(t.priceCents)}</td>
+      <td class="muted">${timestamp(t.bookedAt)}</td>`;
+    return tr;
+  }));
+}
+
+// ---- event list -------------------------------------------------------------
+
+function renderEvents() {
+  const body = el("event-rows");
+  if (!events.length) {
+    body.innerHTML = `<tr><td colspan="6" class="empty">No events found</td></tr>`;
+    return;
+  }
+  body.replaceChildren(...events.map(eventRow));
+}
+
+function eventRow(event) {
   const tr = document.createElement("tr");
   tr.innerHTML = `
-    <td>${task.id}</td>
-    <td>${escapeHtml(task.title)}</td>
-    <td class="muted">${task.description ? escapeHtml(task.description) : "—"}</td>
-    <td>
-      <select class="status" data-status="${task.status}" aria-label="Status">
-        ${STATUSES.map((s) =>
-          `<option value="${s}" ${s === task.status ? "selected" : ""}>${STATUS_LABELS[s]}</option>`).join("")}
-      </select>
-    </td>
-    <td class="muted">${timestamp(task.updatedAt)}</td>
-    <td class="row-actions"><button type="button" class="btn btn-secondary btn-small">Delete</button></td>`;
+    <td>${escapeHtml(event.title)}</td>
+    <td>${escapeHtml(event.artistName)}</td>
+    <td>${escapeHtml(event.venueName)}</td>
+    <td class="muted">${escapeHtml(event.location)}</td>
+    <td class="muted">${timestamp(event.startTime)}</td>
+    <td class="row-actions"><button type="button" class="btn btn-secondary btn-small">View tickets</button></td>`;
 
-  const status = tr.querySelector("select");
-  status.addEventListener("change", () =>
-    act(status, () => request(`${API}/${task.id}`, { method: "PATCH", body: { status: status.value } }),
-      "Status updated"));
-
-  const remove = tr.querySelector("button");
-  remove.addEventListener("click", () =>
-    act(remove, () => request(`${API}/${task.id}`, { method: "DELETE" }), "Task deleted"));
-
+  tr.querySelector("button").addEventListener("click", () => openEvent(event.id, event.title));
   return tr;
 }
 
-/**
- * Runs a row action with the control disabled for the duration, so an impatient double-click is
- * one request rather than two. Reloads either way — on failure that resyncs the row back to what
- * the server actually holds, instead of leaving the select showing a change that never landed.
- */
-async function act(control, run, message) {
-  control.disabled = true;
-  try {
-    await run();
-    toast(message);
-  } catch (err) {
-    toast(err.message, "error");
-  } finally {
-    await load();
-  }
-}
-
-// ---- actions --------------------------------------------------------------
-
-async function load() {
-  const status = el("status-filter").value;
+async function loadEvents() {
   const error = el("list-error");
   error.hidden = true;
+  const q = el("q").value.trim();
+  const location = el("location").value.trim();
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (location) params.set("location", location);
 
   try {
-    tasks = await request(status ? `${API}?status=${status}` : API);
+    events = await request(params.toString() ? `${EVENTS_API}?${params}` : EVENTS_API);
   } catch (err) {
-    tasks = [];
+    events = [];
     error.textContent = err.message;
     error.hidden = false;
   }
-  render();
+  renderEvents();
 }
 
-async function create(event) {
+// ---- event detail / tickets ------------------------------------------------
+
+async function openEvent(id, title) {
+  currentEventId = id;
+  el("detail-panel").hidden = false;
+  el("detail-title").textContent = title;
+  el("detail-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  await loadTickets();
+}
+
+el("close-detail").addEventListener("click", () => {
+  currentEventId = null;
+  el("detail-panel").hidden = true;
+});
+
+async function loadTickets() {
+  const error = el("detail-error");
+  error.hidden = true;
+  try {
+    const [detail, tickets] = await Promise.all([
+      request(`${EVENTS_API}/${currentEventId}`),
+      request(`${EVENTS_API}/${currentEventId}/tickets`),
+    ]);
+    el("available-count").textContent = `${detail.availableTicketCount} available`;
+    renderTickets(tickets);
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+  }
+}
+
+function renderTickets(tickets) {
+  const body = el("ticket-rows");
+  if (!tickets.length) {
+    body.innerHTML = `<tr><td colspan="5" class="empty">No tickets for this event</td></tr>`;
+    return;
+  }
+  body.replaceChildren(...tickets.map(ticketRow));
+}
+
+function ticketRow(ticket) {
+  const tr = document.createElement("tr");
+  const isAvailable = ticket.status === "AVAILABLE";
+  tr.innerHTML = `
+    <td>${escapeHtml(ticket.section)}</td>
+    <td>${escapeHtml(ticket.seatLabel)}</td>
+    <td>${money(ticket.priceCents)}</td>
+    <td>${ticket.status === "BOOKED" ? `Booked${ticket.buyerName ? ` — ${escapeHtml(ticket.buyerName)}` : ""}` : "Available"}</td>
+    <td class="row-actions">
+      ${isAvailable ? `
+        <form class="book-form">
+          <input type="text" name="buyerName" placeholder="Name" required maxlength="200">
+          <input type="email" name="buyerEmail" placeholder="Email" required maxlength="200">
+          <button type="submit" class="btn btn-primary btn-small">Book</button>
+        </form>` : ""}
+    </td>`;
+
+  const form = tr.querySelector("form");
+  if (form) {
+    form.addEventListener("submit", (event) => bookTicket(event, ticket.id));
+  }
+  return tr;
+}
+
+async function bookTicket(event, ticketId) {
   event.preventDefault();
   const form = event.target;
   const button = form.querySelector('button[type="submit"]');
-  const error = el("form-error");
-  error.hidden = true;
-
-  // A double-click is two POSTs and two tasks. Hold the button down until the call resolves, and
-  // re-enable in `finally` so a validation failure doesn't strand the form.
-  button.disabled = true;
   const data = new FormData(form);
 
+  button.disabled = true;
   try {
-    await request(API, {
+    await request(`${TICKETS_API}/${ticketId}/book`, {
       method: "POST",
-      body: { title: data.get("title"), description: data.get("description") || null },
+      body: { buyerName: data.get("buyerName"), buyerEmail: data.get("buyerEmail") },
     });
-    form.reset();
-    toast("Task created");
-    await load();
+    toast("Ticket booked");
+    await Promise.all([loadTickets(), loadMine()]);
   } catch (err) {
-    error.textContent = err.message;
-    error.hidden = false;
-  } finally {
+    toast(err.message, "error");
     button.disabled = false;
   }
 }
 
 // ---- wiring ---------------------------------------------------------------
 
-el("status-filter").insertAdjacentHTML("beforeend",
-  STATUSES.map((s) => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join(""));
+el("refresh").addEventListener("click", loadEvents);
+el("q").addEventListener("keydown", (e) => e.key === "Enter" && loadEvents());
+el("location").addEventListener("keydown", (e) => e.key === "Enter" && loadEvents());
 
-el("create-form").addEventListener("submit", create);
-el("status-filter").addEventListener("change", load);
-el("refresh").addEventListener("click", load);
-
-load();
+loadEvents();
+loadUsers();
