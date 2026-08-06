@@ -121,12 +121,8 @@ state cannot be returned to.
 ## Deliberately not here
 
 Auth, authorization, rate limiting, pagination, caching, async/queues, containerisation, an
-external database, a frontend build step, and a CI pipeline. Each is the right call for production
-and the wrong call for a one-hour scaffold. Discuss them; don't implement them on the clock.
+external database, a frontend build step, and a CI pipeline.
 
-This is **not production-ready**. It is production-*conscious*: the shapes that are hard to retrofit
-(error contract, validation, layering, DTO boundaries, injected clock, integration tests) are
-already right, and the operational concerns are deliberately absent.
 
 ## Profiles
 
@@ -140,26 +136,3 @@ H2 runs in `MODE=PostgreSQL`, which reduces the common syntax differences — id
 here won't need rewriting later. It is a compatibility mode, not an emulator: **locking behaviour,
 constraint enforcement, transaction isolation, and any native SQL still have to be verified against
 a real PostgreSQL** before you rely on them. Say that rather than claiming portability.
-
-There is no external-database profile: nothing in this repo needs infrastructure to run.
-
-## Handing this off as an archive
-
-`git archive … HEAD` packages **the last commit, not your working tree.** Uncommitted edits and
-untracked files are silently left out — which is exactly the safety property you want against
-`target/` and `.idea/`, and exactly the trap that ships a stale build. Commit first, always:
-
-```bash
-git status --porcelain          # must print nothing before you go further
-git add -A && git commit -m "chore: checkpoint before archive"
-
-git archive --format=zip --prefix=template-ai/ -o /tmp/template-ai.zip HEAD
-unzip -l /tmp/template-ai.zip | grep -E 'target/|\.idea/|__MACOSX|\.DS_Store' && echo "LEAKED"
-```
-
-Then extract the zip somewhere clean and run `./mvnw clean test` inside it. That is the only check
-that proves what you're handing over actually builds.
-
-Do not use macOS Finder's "Compress" as a substitute. It zips whatever is on disk — including
-`target/`, `.idea/`, and anything else gitignored — and adds a `__MACOSX/` sidecar with
-resource-fork `._*` files on top. Gitignore rules have no effect on it.
