@@ -296,6 +296,14 @@ the `postgres` and `h2` profiles, never on `test`.
 No-Docker fallback: `./mvnw -o spring-boot:run -Dspring-boot.run.profiles=h2`. It gets the UI
 running; it does **not** validate anything in the section below, so don't claim it did.
 
+## Verifying a UI change
+
+1. Start the app using the IntelliJ `▶ Run App (8080)` configuration.
+2. Open or navigate the IDE browser to http://localhost:8080.
+3. Verify the changed flow interactively.
+4. Check http://localhost:8080/swagger-ui.html for API-only changes.
+5. Report what was verified and any browser-console or request errors.
+
 ## PostgreSQL — what this branch buys, and how not to waste it
 
 The whole reason to be on this branch is that assertions about **concurrency and constraints are
