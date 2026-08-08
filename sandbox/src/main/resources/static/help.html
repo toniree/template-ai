@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corporate Cards — How it works</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .prose { max-width: 78ch; }
+    .prose h2 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 10px; }
+    .prose h3 { font-size: 14px; margin: 20px 0 6px; }
+    .prose p { margin: 0 0 12px; }
+    .prose ul { margin: 0 0 12px; padding-left: 20px; }
+    .prose li { margin-bottom: 5px; }
+    .lede { font-size: 17px; line-height: 1.55; }
+
+    .section { margin-bottom: 28px; }
+    .section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+
+    .figure { overflow-x: auto; margin: 0 0 8px; }
+    .figure svg { display: block; min-width: 640px; max-width: 100%; height: auto; }
+    figcaption { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .cols { display: flex; flex-wrap: wrap; gap: 20px; }
+    .cols > * { flex: 1 1 300px; }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    td code { white-space: nowrap; }
+
+    .note { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; color: var(--muted); }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li { counter-increment: step; padding-left: 30px; position: relative; margin-bottom: 8px; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 1px;
+      width: 20px; height: 20px; border-radius: 999px;
+      background: var(--accent); color: var(--accent-text);
+      font-size: 12px; font-weight: 600; text-align: center; line-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">Corporate Cards</span>
+    <div class="tabs"></div>
+    <div class="nav-links">
+      <a href="/">← Back to the app</a>
+      <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
+      <a href="/h2-console" target="_blank" rel="noopener">DB</a>
+    </div>
+  </nav>
+
+  <main>
+    <header class="page-header">
+      <h1>How it works</h1>
+      <p class="subtitle">A walkthrough of what was built, why, and what was deliberately left out. No engineering background needed.</p>
+    </header>
+
+    <section class="panel prose section">
+      <p class="lede">
+        This is a <strong>corporate card spend service</strong>. A company issues cards to employees,
+        each with a spend limit. When an employee pays for something, the merchant asks us
+        <em>"can this card cover $X right now?"</em> — and we answer <strong>approved</strong> or
+        <strong>declined</strong>, in one call, and permanently record what we said.
+      </p>
+      <p>
+        Two things make that harder than it sounds, and they are what the build is really about:
+        the same charge must never post twice, and two charges arriving at the same instant must
+        never both slip past the same limit.
+      </p>
+      <p class="note">
+        <strong>The one rule that must never break:</strong> approved spend on a card can never
+        exceed that card's limit — no matter how many charges arrive at once, or how many times a
+        nervous client retries.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Try it in 60 seconds</h2>
+      <div class="panel prose">
+        <p>The app boots with three cards and six charges already seeded, one of which was declined.</p>
+        <ol class="steps">
+          <li><a href="/">Open the Cards tab</a> — three cards, each showing its limit, spend so far, and what's left.</li>
+          <li>Note <strong>Ada Lovelace</strong>: a $2,500.00 limit with $101.99 spent. A $2,500.00 charge to Dell was <strong>declined</strong> — $2,500.00 no longer fits under what's left.</li>
+          <li>Switch to the <strong>Transactions</strong> tab. The declined Dell charge is still there, with the reason <code>LIMIT_EXCEEDED</code>. Declines are records, not errors.</li>
+          <li>Freeze a card from the Cards tab, then try to charge it. Declined, reason <code>CARD_FROZEN</code> — same shape of answer, different reason.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What happens when a charge arrives</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 520" role="img" aria-label="Flowchart of the authorization decision: idempotency replay check, card row lock, currency check, decline checks, then approval.">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .bx { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .bx-in { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .bx-ok { fill: var(--success-bg); stroke: var(--success); stroke-width: 1.5; }
+              .bx-no { fill: var(--warn-bg); stroke: var(--warn); stroke-width: 1.5; }
+              .bx-err { fill: var(--danger-bg); stroke: var(--danger); stroke-width: 1.5; }
+              .t { fill: var(--text); font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-b { fill: var(--text); font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-m { fill: var(--muted); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+            </style>
+
+            <!-- entry -->
+            <rect class="bx-in" x="40" y="14" width="340" height="52" rx="8"/>
+            <text class="t-b" x="58" y="36">POST /api/transactions</text>
+            <text class="t-m" x="58" y="54">card, amount, currency, merchant + Idempotency-Key</text>
+
+            <!-- 1 replay -->
+            <path class="ln" d="M 210 66 L 210 96"/>
+            <rect class="bx" x="40" y="98" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="118">1 · Have we answered this exact request before?</text>
+            <text class="t-m" x="58" y="135">matched on the client's Idempotency-Key</text>
+            <path class="ln" d="M 380 121 L 496 121"/>
+            <text class="t-m" x="400" y="114">yes</text>
+            <rect class="bx-ok" x="500" y="98" width="320" height="46" rx="8"/>
+            <text class="t-b" x="518" y="118">200 — replay the original answer</text>
+            <text class="t-m" x="518" y="135">the card is not charged a second time</text>
+
+            <!-- 2 lock -->
+            <path class="ln" d="M 210 144 L 210 174"/>
+            <text class="t-m" x="220" y="164">no</text>
+            <rect class="bx" x="40" y="176" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="196">2 · Take an exclusive lock on the card</text>
+            <text class="t-m" x="58" y="213">nobody else can decide on this card until we finish</text>
+
+            <!-- 3 currency -->
+            <path class="ln" d="M 210 222 L 210 252"/>
+            <rect class="bx" x="40" y="254" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="274">3 · Does the currency match the card?</text>
+            <text class="t-m" x="58" y="291">a USD card cannot answer a EUR question</text>
+            <path class="ln" d="M 380 277 L 496 277"/>
+            <text class="t-m" x="400" y="270">no</text>
+            <rect class="bx-err" x="500" y="254" width="320" height="46" rx="8"/>
+            <text class="t-b" x="518" y="274">400 — we can't answer that</text>
+            <text class="t-m" x="518" y="291">unusable input, so nothing is recorded</text>
+
+            <!-- 4 decline checks -->
+            <path class="ln" d="M 210 300 L 210 330"/>
+            <text class="t-m" x="220" y="320">yes</text>
+            <rect class="bx" x="40" y="332" width="340" height="64" rx="8"/>
+            <text class="t-b" x="58" y="352">4 · Is the card usable, and does the amount fit?</text>
+            <text class="t-m" x="58" y="369">card not frozen, not cancelled, and</text>
+            <text class="t-m" x="58" y="386">amount ≤ limit − everything already approved</text>
+            <path class="ln" d="M 380 364 L 496 364"/>
+            <text class="t-m" x="400" y="357">no</text>
+            <rect class="bx-no" x="500" y="332" width="320" height="64" rx="8"/>
+            <text class="t-b" x="518" y="352">201 — DECLINED, and stored</text>
+            <text class="t-m" x="518" y="369">with a reason: CARD_FROZEN, CARD_CANCELLED,</text>
+            <text class="t-m" x="518" y="386">or LIMIT_EXCEEDED</text>
+
+            <!-- 5 approve -->
+            <path class="ln" d="M 210 396 L 210 426"/>
+            <text class="t-m" x="220" y="416">yes</text>
+            <rect class="bx-ok" x="40" y="428" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="448">201 — APPROVED, and stored</text>
+            <text class="t-m" x="58" y="465">the card's remaining balance drops by the amount</text>
+
+            <text class="t-m" x="40" y="502">Steps 2 onward are one database transaction. The lock is released only after the answer is written down.</text>
+          </svg>
+        </figure>
+        <figcaption>Every path ends in a permanent record except the 400 — which is us saying the question itself was malformed.</figcaption>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Four decisions worth knowing about</h2>
+      <div class="panel prose">
+        <h3>A decline is a successful answer, not an error</h3>
+        <p>
+          "This card can't cover it" is the system working correctly. So a decline comes back as a
+          normal, successful response carrying the outcome, and it is <strong>saved</strong>. The
+          decline history is a product surface in its own right — it answers disputes, feeds fraud
+          review, and is the first thing a cardholder asks about. Throwing it away as an error would
+          delete the most-asked-about data in the system.
+        </p>
+
+        <h3>Retrying a charge can't double-charge</h3>
+        <p>
+          If the network drops after we approve but before the merchant hears back, they will retry.
+          Every charge carries a client-generated key; the database physically refuses to store two
+          charges with the same key. A retry gets the original answer back, and the money moves once.
+          This is the same mechanism Stripe exposes as <code>Idempotency-Key</code>.
+        </p>
+
+        <h3>Two simultaneous charges can't both squeak under the limit</h3>
+        <p>
+          A card with $50 left, hit by two $50 charges at the same millisecond, is the classic way a
+          limit leaks. Step 2 above prevents it: the first request locks the card, decides, and
+          writes; the second waits, then reads a total that already includes the first. Exactly one
+          is approved. There is a test that fires eight concurrent charges and asserts precisely one
+          wins — sequential tests pass happily against broken code here, so that test is the proof.
+        </p>
+
+        <h3>The balance is calculated, never stored</h3>
+        <p>
+          A card's remaining balance is added up from its approved charges on every read, rather than
+          kept as a running number that gets updated. A stored counter can drift out of sync with
+          reality after a crash or a bug, and reconciling it is painful. Deriving it means the number
+          shown is, by construction, the truth. At high volume you'd cache a running total and
+          reconcile it against this calculation nightly — that's a scaling change, not a redesign.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How the pieces fit together</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 250" role="img" aria-label="Layer diagram: browser and merchant call the controller, which calls the service holding all rules, which calls the repository, which reads and writes the database.">
+            <defs>
+              <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .b2 { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .b2a { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .l2 { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow2); }
+            </style>
+
+            <rect class="b2" x="20" y="60" width="132" height="60" rx="8"/>
+            <text class="t-b" x="42" y="86">This web UI</text>
+            <text class="t-m" x="42" y="104">+ any merchant</text>
+
+            <path class="l2" d="M 152 90 L 194 90"/>
+
+            <rect class="b2a" x="198" y="52" width="148" height="76" rx="8"/>
+            <text class="t-b" x="216" y="78">Controller</text>
+            <text class="t-m" x="216" y="96">HTTP only: status</text>
+            <text class="t-m" x="216" y="112">codes, parameters</text>
+
+            <path class="l2" d="M 346 90 L 388 90"/>
+
+            <rect class="b2a" x="392" y="52" width="168" height="76" rx="8"/>
+            <text class="t-b" x="410" y="78">Service</text>
+            <text class="t-m" x="410" y="96">every business rule,</text>
+            <text class="t-m" x="410" y="112">one transaction</text>
+
+            <path class="l2" d="M 560 90 L 602 90"/>
+
+            <rect class="b2" x="606" y="52" width="120" height="76" rx="8"/>
+            <text class="t-b" x="624" y="78">Repository</text>
+            <text class="t-m" x="624" y="96">queries, sums,</text>
+            <text class="t-m" x="624" y="112">locks</text>
+
+            <path class="l2" d="M 726 90 L 768 90"/>
+
+            <rect class="b2" x="772" y="52" width="68" height="76" rx="8"/>
+            <text class="t-b" x="790" y="86">DB</text>
+            <text class="t-m" x="783" y="104">H2</text>
+
+            <path d="M 392 152 L 560 152" stroke="var(--accent)" stroke-width="1.5" fill="none" stroke-dasharray="4 3"/>
+            <path d="M 392 146 L 392 158 M 560 146 L 560 158" stroke="var(--accent)" stroke-width="1.5"/>
+            <text class="t-m" x="300" y="174">Database rows never leave the service — they are converted to a response</text>
+            <text class="t-m" x="300" y="190">shape while the transaction is still open, so nothing loads lazily later.</text>
+
+            <text class="t-m" x="20" y="222">Two tables: cards, and transactions. Transactions point at a card; the pair is the whole data model.</text>
+          </svg>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The data</h2>
+      <div class="cols">
+        <div class="panel prose">
+          <h2>Card</h2>
+          <p class="muted">Issued to a person, carries a limit, never deleted.</p>
+          <ul>
+            <li>cardholder name and <strong>last four digits only</strong> — the full number is deliberately never stored or logged</li>
+            <li>status: <span class="pill pill-active">ACTIVE</span> <span class="pill pill-frozen">FROZEN</span> <span class="pill pill-cancelled">CANCELLED</span></li>
+            <li>spend limit + currency</li>
+          </ul>
+          <p class="muted">
+            Active and frozen convert back and forth; either can be cancelled; cancelled is
+            permanent. There is no delete endpoint — financial records are cancelled, not erased.
+          </p>
+        </div>
+        <div class="panel prose">
+          <h2>Transaction</h2>
+          <p class="muted">One authorization attempt. Immutable once written.</p>
+          <ul>
+            <li>amount + currency, merchant, timestamp</li>
+            <li>outcome: <span class="pill pill-approved">APPROVED</span> <span class="pill pill-declined">DECLINED</span></li>
+            <li>decline reason, when declined</li>
+            <li>the client's idempotency key</li>
+          </ul>
+          <p class="muted">
+            Amounts are whole numbers of cents, never decimals. Decimal arithmetic on money loses
+            fractions of a cent, and those errors accumulate into real reconciliation problems.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The API</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Endpoint</th><th>What it does</th><th>Answers</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>POST /api/cards</code></td><td>Issue a card with a limit</td><td>201</td></tr>
+              <tr><td><code>GET /api/cards</code></td><td>All cards with limit, spend, and remaining</td><td>200</td></tr>
+              <tr><td><code>GET /api/cards/{id}</code></td><td>One card</td><td>200 · 404</td></tr>
+              <tr><td><code>PATCH /api/cards/{id}</code></td><td>Freeze, unfreeze, cancel, or change the limit</td><td>200 · 409 on an illegal change</td></tr>
+              <tr><td><code>POST /api/transactions</code></td><td>Ask whether a charge can go through</td><td>201 approved or declined · 200 on a replay</td></tr>
+              <tr><td><code>GET /api/transactions</code></td><td>Charge history, filterable by card, paged</td><td>200</td></tr>
+              <tr><td><code>GET /api/transactions/{id}</code></td><td>One charge</td><td>200 · 404</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-top:12px">
+          Every failure comes back in one consistent shape, so a client writes error handling once.
+          Browse it live in <a href="/swagger-ui.html" target="_blank" rel="noopener">Swagger</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Deliberately not built</h2>
+      <div class="panel prose">
+        <p>
+          These are scoping decisions, not oversights. Each one is a conversation, not a missing
+          feature — and each has a known shape if it becomes a requirement.
+        </p>
+        <ul>
+          <li><strong>Real authentication.</strong> The caller states who they are in a header. Everything is wired so that swapping in real sign-in touches exactly one class.</li>
+          <li><strong>Settlement and refunds.</strong> This answers the authorization question — "can this go through" — not the later movement of money, nor credits back.</li>
+          <li><strong>Multi-currency conversion.</strong> A card is denominated in one currency and rejects charges in another, rather than guessing an exchange rate.</li>
+          <li><strong>Spend controls beyond the limit.</strong> Merchant categories, per-day caps, and approval workflows are all natural next features on top of this model.</li>
+          <li><strong>A real database and queues.</strong> Everything runs in memory so the whole thing starts with one command. The path to production scale is written up in the architecture notes rather than half-built here.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>If you want to read the code</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>To see…</th><th>Look at</th></tr></thead>
+            <tbody>
+              <tr><td>The whole approve/decline decision</td><td><code>transaction/TransactionService.authorize</code></td></tr>
+              <tr><td>The limit check, written to be overflow-safe</td><td><code>transaction/TransactionService.declineReason</code></td></tr>
+              <tr><td>The lock that makes concurrent charges safe</td><td><code>card/CardRepository.findWithLockById</code></td></tr>
+              <tr><td>The card lifecycle, as one exhaustive rule</td><td><code>card/CardService.requireLegalTransition</code></td></tr>
+              <tr><td>Spend for every card in a single query</td><td><code>transaction/TransactionRepository.sumAmountGroupedByCard</code></td></tr>
+              <tr><td>The proof that only one concurrent charge wins</td><td><code>transaction/TransactionApiIT</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
