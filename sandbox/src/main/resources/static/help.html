@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Task Board — How it works</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root { --success-bg: #e6f5ef; --warn-bg: #fdf3e0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --success-bg: #13291f; --warn-bg: #2a2214; }
+    }
+
+    .prose { max-width: 78ch; }
+    .prose h2 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 10px; }
+    .prose h3 { font-size: 14px; margin: 20px 0 6px; }
+    .prose p { margin: 0 0 12px; }
+    .prose ul { margin: 0 0 12px; padding-left: 20px; }
+    .prose li { margin-bottom: 5px; }
+    .lede { font-size: 17px; line-height: 1.55; }
+
+    .section { margin-bottom: 28px; }
+    .section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+
+    .figure { overflow-x: auto; margin: 0 0 8px; }
+    .figure svg { display: block; min-width: 640px; max-width: 100%; height: auto; }
+    figcaption { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .cols { display: flex; flex-wrap: wrap; gap: 20px; }
+    .cols > * { flex: 1 1 300px; }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    td code { white-space: nowrap; }
+
+    .note { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; color: var(--muted); }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li { counter-increment: step; padding-left: 30px; position: relative; margin-bottom: 8px; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 1px;
+      width: 20px; height: 20px; border-radius: 999px;
+      background: var(--accent); color: var(--accent-text);
+      font-size: 12px; font-weight: 600; text-align: center; line-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">Task Board</span>
+    <div class="nav-links">
+      <a href="/">← Back to the app</a>
+      <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
+      <a href="/h2-console" target="_blank" rel="noopener">DB</a>
+    </div>
+  </nav>
+
+  <main>
+    <header class="page-header">
+      <h1>How it works</h1>
+      <p class="subtitle">A walkthrough of what was built, why, and what was deliberately left out. No engineering background needed.</p>
+    </header>
+
+    <section class="panel prose section">
+      <p class="lede">
+        This is a <strong>task tracker</strong> — the sample domain this scaffold ships with. It
+        exists to prove that persistence, validation, errors, and the UI are wired together end to
+        end, not to model an interesting business. When a real problem shows up, this package gets
+        replaced.
+      </p>
+      <p>
+        What is worth your time here isn't the task-tracking itself — it's the plumbing underneath
+        it: partial updates that can't accidentally erase a field, error responses with a single
+        consistent shape, and a layout meant to be extended fast under time pressure.
+      </p>
+      <p class="note">
+        <strong>Why H2:</strong> this branch runs on an in-memory database so the whole app starts
+        with one command, no setup required — the point of an interview scaffold. There's a
+        <code>postgres</code> branch that is this same app on a real PostgreSQL database, for
+        problems where the invariant genuinely needs a lock or a constraint to enforce it.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Try it in 60 seconds</h2>
+      <div class="panel prose">
+        <p>The app boots with four tasks already seeded, in a mix of statuses.</p>
+        <ol class="steps">
+          <li><a href="/">Open the board</a> — every task, its status, and when it last changed.</li>
+          <li>Change a task's status from the dropdown in its row — that's a <code>PATCH</code>, applied immediately.</li>
+          <li>Filter by status using the dropdown above the table — filtering happens in the database, not in the browser.</li>
+          <li>Click a row to open its detail panel, then delete it — deleting an id that no longer exists comes back <code>404</code>, not a silent success.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What happens when you edit a task</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 300" role="img" aria-label="Flowchart of a PATCH request: find the task or 404, apply only the fields sent, write the new updated-at, return 200.">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .bx { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .bx-in { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .bx-ok { fill: var(--success-bg); stroke: var(--success); stroke-width: 1.5; }
+              .bx-err { fill: var(--danger-bg); stroke: var(--danger); stroke-width: 1.5; }
+              .t { fill: var(--text); font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-b { fill: var(--text); font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-m { fill: var(--muted); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+            </style>
+
+            <rect class="bx-in" x="40" y="14" width="340" height="52" rx="8"/>
+            <text class="t-b" x="58" y="36">PATCH /api/tasks/{id}</text>
+            <text class="t-m" x="58" y="54">only the fields the caller actually sent</text>
+
+            <path class="ln" d="M 210 66 L 210 96"/>
+            <rect class="bx" x="40" y="98" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="118">1 · Does a task with this id exist?</text>
+            <path class="ln" d="M 380 121 L 496 121"/>
+            <text class="t-m" x="400" y="114">no</text>
+            <rect class="bx-err" x="500" y="98" width="320" height="46" rx="8"/>
+            <text class="t-b" x="518" y="118">404 — Task not found</text>
+
+            <path class="ln" d="M 210 144 L 210 174"/>
+            <text class="t-m" x="220" y="164">yes</text>
+            <rect class="bx" x="40" y="176" width="340" height="60" rx="8"/>
+            <text class="t-b" x="58" y="196">2 · Apply only the non-null fields sent</text>
+            <text class="t-m" x="58" y="213">title, description, and status are all optional —</text>
+            <text class="t-m" x="58" y="230">omitted stays as-is, sent replaces</text>
+
+            <path class="ln" d="M 210 236 L 210 266"/>
+            <rect class="bx-ok" x="40" y="268" width="340" height="46" rx="8"/>
+            <text class="t-b" x="58" y="288">3 · 200 — updated task, new updatedAt</text>
+            <text class="t-m" x="58" y="305">stamped from the injected Clock, never Instant.now()</text>
+          </svg>
+        </figure>
+        <figcaption>The whole method runs in one transaction; the mapping to a response record happens before it closes.</figcaption>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Four decisions worth knowing about</h2>
+      <div class="panel prose">
+        <h3>PATCH means partial, on purpose</h3>
+        <p>
+          Every field on the update request is optional and boxed (<code>Long</code>, not
+          <code>long</code>) rather than a primitive. That matters: a primitive silently becomes
+          <code>0</code> or <code>false</code> when the caller omits it, and validation would wave
+          that through as if the caller meant it. Boxed + nullable means "not sent" and "sent as
+          empty" stay distinguishable.
+        </p>
+
+        <h3>A nested resource 404s on a missing parent</h3>
+        <p>
+          There's no nested resource in this sample domain, but the rule the scaffold follows
+          everywhere is: querying a collection under a parent id that doesn't exist must return 404,
+          not an empty list. An empty list looks identical to "the parent is real and has nothing in
+          it" — those are different answers, and the caller can't tell them apart otherwise.
+        </p>
+
+        <h3>Time comes from one injected clock</h3>
+        <p>
+          <code>createdAt</code>/<code>updatedAt</code> are stamped from a <code>Clock</code> bean,
+          never <code>Instant.now()</code> directly. It looks identical at runtime — the payoff is in
+          tests: an expiry or a cutoff can be tested by advancing a fake clock instead of sleeping.
+          This sample has no expiry, but the pattern is what a feature that does would build on.
+        </p>
+
+        <h3>The database resets every restart, on purpose</h3>
+        <p>
+          <code>ddl-auto</code> is <code>create-drop</code> against an in-memory H2 instance: the
+          schema regenerates from the entities and the data disappears every time the app stops.
+          That's the right tradeoff while the model is still changing every few minutes — the honest
+          production answer is versioned migrations from the first real release, not this.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How the pieces fit together</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 220" role="img" aria-label="Layer diagram: browser calls the controller, which calls the service holding all rules, which calls the repository, which reads and writes the database.">
+            <defs>
+              <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .b2 { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .b2a { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .l2 { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow2); }
+            </style>
+
+            <rect class="b2" x="20" y="60" width="132" height="60" rx="8"/>
+            <text class="t-b" x="42" y="86">This web UI</text>
+            <text class="t-m" x="42" y="104">or Swagger</text>
+
+            <path class="l2" d="M 152 90 L 194 90"/>
+
+            <rect class="b2a" x="198" y="52" width="148" height="76" rx="8"/>
+            <text class="t-b" x="216" y="78">Controller</text>
+            <text class="t-m" x="216" y="96">HTTP only: status</text>
+            <text class="t-m" x="216" y="112">codes, parameters</text>
+
+            <path class="l2" d="M 346 90 L 388 90"/>
+
+            <rect class="b2a" x="392" y="52" width="168" height="76" rx="8"/>
+            <text class="t-b" x="410" y="78">Service</text>
+            <text class="t-m" x="410" y="96">every business rule,</text>
+            <text class="t-m" x="410" y="112">one transaction</text>
+
+            <path class="l2" d="M 560 90 L 602 90"/>
+
+            <rect class="b2" x="606" y="52" width="120" height="76" rx="8"/>
+            <text class="t-b" x="624" y="78">Repository</text>
+            <text class="t-m" x="624" y="96">queries, sorts,</text>
+            <text class="t-m" x="624" y="112">filters</text>
+
+            <path class="l2" d="M 726 90 L 768 90"/>
+
+            <rect class="b2" x="772" y="52" width="68" height="76" rx="8"/>
+            <text class="t-b" x="786" y="86">DB</text>
+            <text class="t-m" x="783" y="104">H2</text>
+
+            <text class="t-m" x="20" y="180">Database rows never leave the service — they are converted to a response shape while the transaction is still open, so nothing loads lazily later.</text>
+            <text class="t-m" x="20" y="200">One table: tasks. That's the whole data model.</text>
+          </svg>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The data</h2>
+      <div class="panel prose">
+        <h2>Task</h2>
+        <ul>
+          <li>title (required) and description (optional)</li>
+          <li>status: <code>TODO</code> · <code>IN_PROGRESS</code> · <code>DONE</code>, any transition allowed</li>
+          <li><code>createdAt</code> / <code>updatedAt</code>, stamped from the injected clock</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The API</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Endpoint</th><th>What it does</th><th>Answers</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>POST /api/tasks</code></td><td>Create a task</td><td>201</td></tr>
+              <tr><td><code>GET /api/tasks</code></td><td>All tasks, optionally filtered by status</td><td>200</td></tr>
+              <tr><td><code>GET /api/tasks/{id}</code></td><td>One task</td><td>200 · 404</td></tr>
+              <tr><td><code>PATCH /api/tasks/{id}</code></td><td>Update only the fields sent</td><td>200 · 400 · 404</td></tr>
+              <tr><td><code>DELETE /api/tasks/{id}</code></td><td>Delete a task</td><td>204 · 404</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-top:12px">
+          Every failure comes back in one consistent shape, so a client writes error handling once.
+          Browse it live in <a href="/swagger-ui.html" target="_blank" rel="noopener">Swagger</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Deliberately not built</h2>
+      <div class="panel prose">
+        <p>
+          These are scoping decisions, not oversights — this package is a wiring proof, not a
+          product.
+        </p>
+        <ul>
+          <li><strong>A real business domain.</strong> Task tracking has no interesting invariant on purpose. The real problem, when it arrives, replaces this package.</li>
+          <li><strong>Auth.</strong> There's no identity in play in this sample, so <code>CurrentUser</code> isn't wired in here — it's ready for a feature that needs ownership.</li>
+          <li><strong>Migrations.</strong> Schema is regenerated on every restart against an in-memory database.</li>
+          <li><strong>Real concurrency guarantees.</strong> H2's PostgreSQL compatibility mode reproduces syntax, not locking behavior — that's exactly what the <code>postgres</code> branch exists to make real.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>If you want to read the code</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>To see…</th><th>Look at</th></tr></thead>
+            <tbody>
+              <tr><td>The whole create/update/delete flow</td><td><code>task/TaskService</code></td></tr>
+              <tr><td>The partial-update rule, applied field by field</td><td><code>task/TaskService.update</code></td></tr>
+              <tr><td>How the clock gets injected instead of called directly</td><td><code>common/AppConfig.clock</code></td></tr>
+              <tr><td>The seed data behind the demo</td><td><code>DemoData</code></td></tr>
+              <tr><td>The integration test shape to copy for a new feature</td><td><code>task/TaskApiIT</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
