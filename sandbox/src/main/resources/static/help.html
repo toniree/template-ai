@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TicketMaster MVP — How it works</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    :root { --success-bg: #e6f5ef; --warn-bg: #fdf3e0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --success-bg: #13291f; --warn-bg: #2a2214; }
+    }
+
+    .prose { max-width: 78ch; }
+    .prose h2 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 10px; }
+    .prose h3 { font-size: 14px; margin: 20px 0 6px; }
+    .prose p { margin: 0 0 12px; }
+    .prose ul { margin: 0 0 12px; padding-left: 20px; }
+    .prose li { margin-bottom: 5px; }
+    .lede { font-size: 17px; line-height: 1.55; }
+
+    .section { margin-bottom: 28px; }
+    .section > h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+
+    .figure { overflow-x: auto; margin: 0 0 8px; }
+    .figure svg { display: block; min-width: 640px; max-width: 100%; height: auto; }
+    figcaption { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .cols { display: flex; flex-wrap: wrap; gap: 20px; }
+    .cols > * { flex: 1 1 300px; }
+
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    td code { white-space: nowrap; }
+
+    .note { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; color: var(--muted); }
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li { counter-increment: step; padding-left: 30px; position: relative; margin-bottom: 8px; }
+    .steps li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 1px;
+      width: 20px; height: 20px; border-radius: 999px;
+      background: var(--accent); color: var(--accent-text);
+      font-size: 12px; font-weight: 600; text-align: center; line-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">TicketMaster MVP</span>
+    <div class="nav-links">
+      <a href="/">← Back to the app</a>
+      <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
+      <a href="/h2-console" target="_blank" rel="noopener">DB</a>
+    </div>
+  </nav>
+
+  <main>
+    <header class="page-header">
+      <h1>How it works</h1>
+      <p class="subtitle">A walkthrough of what was built, why, and what was deliberately left out. No engineering background needed.</p>
+    </header>
+
+    <section class="panel prose section">
+      <p class="lede">
+        This is a <strong>ticket booking service</strong>. An event has a fixed set of seats, each
+        priced by section. A buyer searches for an event, sees which seats are still open, and books
+        one — first come, first served.
+      </p>
+      <p>
+        One thing makes that harder than it sounds, and it's what the build is really about: when
+        two people click the same seat within the same instant, exactly one of them should get it —
+        never both, and never neither.
+      </p>
+      <p class="note">
+        <strong>The one rule that must never break:</strong> a seat is booked by at most one buyer,
+        no matter how many people click it at the same moment.
+      </p>
+    </section>
+
+    <section class="section">
+      <h2>Try it in 60 seconds</h2>
+      <div class="panel prose">
+        <p>The app boots with three events and their seat inventory already seeded, and three users to book as.</p>
+        <ol class="steps">
+          <li><a href="/">Open the app</a> — pick a user from the picker, then search for an event (try "Taylor" or leave it blank).</li>
+          <li>Click an event to see its seats by section, each marked <strong>Available</strong> or <strong>Booked</strong>.</li>
+          <li>Book an available seat with a name and email. It flips to Booked immediately, and shows up under <strong>My tickets</strong>.</li>
+          <li>Switch users from the topnav menu and try to book that same seat again — <code>409</code>, because it's already gone.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>What happens when a seat is booked</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 300" role="img" aria-label="Flowchart of booking a ticket: find the ticket or 404, run one atomic conditional update, zero rows means already booked (409), one row means success (200).">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .bx { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .bx-in { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .bx-ok { fill: var(--success-bg); stroke: var(--success); stroke-width: 1.5; }
+              .bx-no { fill: var(--warn-bg); stroke: var(--warn); stroke-width: 1.5; }
+              .bx-err { fill: var(--danger-bg); stroke: var(--danger); stroke-width: 1.5; }
+              .t { fill: var(--text); font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-b { fill: var(--text); font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .t-m { fill: var(--muted); font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+              .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+            </style>
+
+            <rect class="bx-in" x="40" y="14" width="360" height="52" rx="8"/>
+            <text class="t-b" x="58" y="36">POST /api/tickets/{id}/book</text>
+            <text class="t-m" x="58" y="54">buyer name + email, X-User-Id header</text>
+
+            <path class="ln" d="M 220 66 L 220 96"/>
+            <rect class="bx" x="40" y="98" width="360" height="46" rx="8"/>
+            <text class="t-b" x="58" y="118">1 · Does a ticket with this id exist?</text>
+            <path class="ln" d="M 400 121 L 500 121"/>
+            <text class="t-m" x="410" y="114">no</text>
+            <rect class="bx-err" x="504" y="98" width="316" height="46" rx="8"/>
+            <text class="t-b" x="522" y="118">404 — Ticket not found</text>
+
+            <path class="ln" d="M 220 144 L 220 174"/>
+            <text class="t-m" x="230" y="164">yes</text>
+            <rect class="bx" x="40" y="176" width="360" height="64" rx="8"/>
+            <text class="t-b" x="58" y="196">2 · One atomic UPDATE:</text>
+            <text class="t-m" x="58" y="213">set status = BOOKED, buyer, owner</text>
+            <text class="t-m" x="58" y="230">where id = :id and status = 'AVAILABLE'</text>
+
+            <path class="ln" d="M 220 240 L 220 270"/>
+            <text class="t-m" x="230" y="260">0 rows changed</text>
+            <rect class="bx-no" x="40" y="272" width="360" height="46" rx="8"/>
+            <text class="t-b" x="58" y="292">409 — already booked</text>
+            <text class="t-m" x="58" y="309">someone else's update won the race</text>
+
+            <path class="ln" d="M 400 199 L 500 199"/>
+            <text class="t-m" x="410" y="192">1 row changed</text>
+            <rect class="bx-ok" x="504" y="176" width="316" height="46" rx="8"/>
+            <text class="t-b" x="522" y="196">200 — booked</text>
+            <text class="t-m" x="522" y="213">this request won</text>
+          </svg>
+        </figure>
+        <figcaption>No lock is taken. The database's row-versioning does the work: the conditional UPDATE either changes the row or it doesn't, in one round trip.</figcaption>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Three decisions worth knowing about</h2>
+      <div class="panel prose">
+        <h3>The booking rule is one conditional UPDATE, not a lock</h3>
+        <p>
+          <code>update tickets set status = 'BOOKED', ... where id = :id and status = 'AVAILABLE'</code>
+          is the whole mechanism. Two requests racing for the same seat both run it; the database
+          serializes the two writes, exactly one changes a row, and "rows affected" tells the service
+          who won. No explicit lock, no read-then-write gap for a second request to slip through.
+        </p>
+
+        <h3>Losing the race is a 409, not a 500</h3>
+        <p>
+          "This seat is already booked" is the system working correctly, not a failure. It comes back
+          as a normal 409 conflict with a clear reason, so a client can show "someone else got that
+          seat" instead of a generic error.
+        </p>
+
+        <h3>Identity is a header, not real auth</h3>
+        <p>
+          <code>X-User-Id</code> states who is booking; the caller can claim any id, so this is not
+          authentication — it's what lets "my tickets" and ownership work without building a login
+          flow. Swapping in a verified session later is a change to one class
+          (<code>CurrentUser</code>), not a rewrite of every controller.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>How the pieces fit together</h2>
+      <div class="panel">
+        <figure class="figure">
+          <svg viewBox="0 0 860 250" role="img" aria-label="Layer diagram: browser calls the controller, which calls the service holding all rules, which calls the repository, which reads and writes the database. Event, Ticket, and User are the three entities.">
+            <defs>
+              <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+            <style>
+              .b2 { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+              .b2a { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+              .l2 { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow2); }
+            </style>
+
+            <rect class="b2" x="20" y="60" width="132" height="60" rx="8"/>
+            <text class="t-b" x="42" y="86">This web UI</text>
+            <text class="t-m" x="42" y="104">or Swagger</text>
+
+            <path class="l2" d="M 152 90 L 194 90"/>
+
+            <rect class="b2a" x="198" y="52" width="148" height="76" rx="8"/>
+            <text class="t-b" x="216" y="78">Controller</text>
+            <text class="t-m" x="216" y="96">HTTP only: status</text>
+            <text class="t-m" x="216" y="112">codes, parameters</text>
+
+            <path class="l2" d="M 346 90 L 388 90"/>
+
+            <rect class="b2a" x="392" y="52" width="168" height="76" rx="8"/>
+            <text class="t-b" x="410" y="78">Service</text>
+            <text class="t-m" x="410" y="96">every business rule,</text>
+            <text class="t-m" x="410" y="112">one transaction</text>
+
+            <path class="l2" d="M 560 90 L 602 90"/>
+
+            <rect class="b2" x="606" y="52" width="120" height="76" rx="8"/>
+            <text class="t-b" x="624" y="78">Repository</text>
+            <text class="t-m" x="624" y="96">queries, the</text>
+            <text class="t-m" x="624" y="112">atomic booking write</text>
+
+            <path class="l2" d="M 726 90 L 768 90"/>
+
+            <rect class="b2" x="772" y="52" width="68" height="76" rx="8"/>
+            <text class="t-b" x="790" y="86">DB</text>
+            <text class="t-m" x="783" y="104">H2</text>
+
+            <text class="t-m" x="20" y="180">Database rows never leave the service — they are converted to a response shape while the transaction is still open, so nothing loads lazily later.</text>
+            <text class="t-m" x="20" y="200">Three tables: events, tickets, and users. A ticket belongs to an event, and to a buyer once booked.</text>
+          </svg>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The data</h2>
+      <div class="cols">
+        <div class="panel prose">
+          <h2>Event</h2>
+          <p class="muted">Artist and venue are attributes of the event, not their own entities — nothing here manages either on its own.</p>
+          <ul>
+            <li>title, artist, venue, location, start time</li>
+          </ul>
+        </div>
+        <div class="panel prose">
+          <h2>Ticket</h2>
+          <p class="muted">One seat at one event. Immutable price and section; status flips once.</p>
+          <ul>
+            <li>section + seat label, price</li>
+            <li>status: <code>AVAILABLE</code> · <code>BOOKED</code></li>
+            <li>buyer name/email + who booked it, once booked</li>
+          </ul>
+        </div>
+        <div class="panel prose">
+          <h2>User</h2>
+          <p class="muted">Just enough to back the picker and "my tickets" — name and email, nothing more.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The API</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Endpoint</th><th>What it does</th><th>Answers</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>GET /api/events</code></td><td>Search events by title/artist/venue and location</td><td>200</td></tr>
+              <tr><td><code>GET /api/events/{id}</code></td><td>One event</td><td>200 · 404</td></tr>
+              <tr><td><code>GET /api/events/{id}/tickets</code></td><td>Seats for an event, optionally filtered to AVAILABLE</td><td>200 · 404</td></tr>
+              <tr><td><code>POST /api/tickets/{id}/book</code></td><td>Book a seat for the calling user</td><td>200 · 404 · 409</td></tr>
+              <tr><td><code>GET /api/tickets/mine</code></td><td>Every ticket the calling user has booked</td><td>200</td></tr>
+              <tr><td><code>GET /api/users</code></td><td>The user roster, for the picker</td><td>200</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-top:12px">
+          Every failure comes back in one consistent shape, so a client writes error handling once.
+          Browse it live in <a href="/swagger-ui.html" target="_blank" rel="noopener">Swagger</a>.
+        </p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Deliberately not built</h2>
+      <div class="panel prose">
+        <p>
+          These are scoping decisions, not oversights. Each one is a conversation, not a missing
+          feature — and each has a known shape if it becomes a requirement.
+        </p>
+        <ul>
+          <li><strong>Real authentication.</strong> The caller states who they are in a header. Everything is wired so that swapping in real sign-in touches exactly one class.</li>
+          <li><strong>Holds or a reserve/confirm flow.</strong> Booking is answered directly, in one call — there's no "reserved for 10 minutes while you check out" state. That's the natural next feature if abandoned carts become a problem.</li>
+          <li><strong>Payments.</strong> Booking records who holds a seat; it doesn't move money.</li>
+          <li><strong>Event or ticket creation.</strong> Events and seat inventory are fixture data — there's no admin flow to author them.</li>
+          <li><strong>A real database and queues.</strong> Everything runs in memory so the whole thing starts with one command. High-demand on-sale traffic is a scaling conversation, not something half-built here.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>If you want to read the code</h2>
+      <div class="panel">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>To see…</th><th>Look at</th></tr></thead>
+            <tbody>
+              <tr><td>The whole booking decision</td><td><code>ticket/TicketService.book</code></td></tr>
+              <tr><td>The atomic conditional update that makes it race-safe</td><td><code>ticket/TicketRepository.book</code></td></tr>
+              <tr><td>Why a missing event 404s instead of returning an empty seat list</td><td><code>event/EventService.get</code></td></tr>
+              <tr><td>How "current user" is read from a header</td><td><code>common/CurrentUser</code></td></tr>
+              <tr><td>The seed events and seat inventory behind the demo</td><td><code>DemoData</code></td></tr>
+              <tr><td>The test shape to copy for a new feature</td><td><code>ticket/TicketApiIT</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
