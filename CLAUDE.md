@@ -259,6 +259,14 @@ the next run so the new dependency can download, then go back to offline.
 Swagger `/swagger-ui.html` · H2 console `/h2-console` (jdbc:h2:mem:sandbox, `sa`, no password).
 Demo data is seeded by `DemoData.java` on the `h2` profile only.
 
+## Verifying a UI change
+
+1. Start the app using the IntelliJ `▶ Run App (8080)` configuration.
+2. Open or navigate the IDE browser to http://localhost:8080.
+3. Verify the changed flow interactively.
+4. Check http://localhost:8080/swagger-ui.html for API-only changes.
+5. Report what was verified and any browser-console or request errors.
+
 ## Definition of done for a feature
 
 Endpoint works via curl · invalid input returns 400 with field details · unknown id returns 404 ·
