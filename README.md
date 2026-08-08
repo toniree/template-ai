@@ -12,16 +12,27 @@ goes into the problem you were actually given, not into scaffolding.
 > `ON CONFLICT`. Use `generic` (in-memory H2, no Docker) when it doesn't.
 
 ```bash
-docker compose up -d          # repo root, FIRST — nothing works without it
+./run.sh                      # repo root — starts Postgres if it isn't running, then the app
+```
+
+`./run.sh` calls `scripts/ensure-postgres.sh`, which is idempotent and safe to run before every
+command: if nothing's listening on 5432 it starts Docker Compose (if you have Docker and the repo's
+`docker-compose.yml`) or `postgresql@16` via `brew services` (if you don't), waits for it to accept
+connections, then creates the `postgres` role and the `sandbox`/`sandbox_test` databases if they're
+missing — with the same `postgres`/`postgres` credentials either way, so `application.yml` needs no
+per-machine edits. Run it standalone before `test` too:
+
+```bash
+./scripts/ensure-postgres.sh
 cd sandbox
 ./mvnw clean test             # ONCE, online — populates ~/.m2 (see below)
-./mvnw -o spring-boot:run     # http://localhost:8080 — seeded and clickable
 ./mvnw -o test                # whole suite, against the sandbox_test database
 ```
 
-The compose file runs one container with two databases: `sandbox` for the app and `sandbox_test`
-for the suite, so a test run can't drop the schema out from under a live demo. `docker compose
-down -v` throws it all away.
+Two databases, one Postgres: `sandbox` for the app, `sandbox_test` for the suite, so a test run
+can't drop the schema out from under a live demo. With Docker, `docker compose down -v` throws it
+all away; with Homebrew, `brew services stop postgresql@16`, and `dropdb sandbox sandbox_test` if
+you want the databases gone too.
 
 **Run Maven online at least once before relying on `-o`.** The `-o` (offline) flag doesn't
 download anything — it only works once every dependency is already in `~/.m2`. On a fresh machine,

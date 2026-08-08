@@ -16,8 +16,9 @@ cd sandbox
 `/swagger-ui.html` · `/actuator/health` · psql:
 `docker compose exec postgres psql -U postgres sandbox`
 
-Bring the database up first, from the repo root: `docker compose up -d` (`down -v` to discard).
-The app uses `sandbox`, the suite uses `sandbox_test`, both in the same container.
+Bring the database up first, from the repo root: `./scripts/ensure-postgres.sh` (or just
+`./run.sh`, which calls it before booting the app). It starts Docker Compose if you have Docker,
+otherwise `postgresql@16` via Homebrew, and creates `sandbox`/`sandbox_test` if missing.
 
 **If Docker dies mid-interview**, don't lose the suite — override the datasource on the command
 line, which beats the profile's values without editing a file:

@@ -28,7 +28,7 @@ delete a test, and its only job is to let you notice tests that have silently st
 cleared `~/.m2`, or **any `pom.xml` change** breaks it until you run online again. That's why the
 offline run is a verification step and not just a habit.
 
-- [ ] `docker compose up -d` from the repo root, container reports healthy
+- [ ] `./scripts/ensure-postgres.sh` from the repo root — reports "ready"
 - [ ] Online run done, then `./mvnw -o clean test` passes offline with the same test count
 - [ ] App boots on the `postgres` profile and the UI lists the seeded tasks
 - [ ] `docker` daemon starts on login (or you know the one command that starts it)

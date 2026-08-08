@@ -273,9 +273,9 @@ avoids, and mid-interview is the worst time to pay it.
 ## Commands
 
 ```bash
-docker compose up -d          # repo root, FIRST — nothing else works without it
+./run.sh                      # repo root — starts Postgres (Docker or Homebrew) if needed, then the app
+./scripts/ensure-postgres.sh  # same Postgres bootstrap, standalone — run before `test`
 cd sandbox
-./mvnw -o spring-boot:run     # http://localhost:8080  (offline flag skips dependency resolution)
 ./mvnw -o test                # whole suite, against the sandbox_test database
 ./mvnw -o test -Dtest=TaskApiIT
 ```
