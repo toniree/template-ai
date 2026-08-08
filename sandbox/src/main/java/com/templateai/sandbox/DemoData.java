@@ -11,14 +11,15 @@ import com.templateai.sandbox.task.TaskDtos.UpdateTaskRequest;
 import com.templateai.sandbox.task.TaskService;
 
 /**
- * Seeds the in-memory database so the UI has something to show the moment it loads. Runs on the
- * {@code h2} profile only — never in tests, which assert on rows they created themselves.
+ * Seeds the database so the UI has something to show the moment it loads. Runs on the {@code
+ * postgres} and {@code h2} profiles — never on {@code test}, whose tests assert on rows they
+ * created themselves.
  *
  * <p>Goes through the service rather than the repository, so the seed exercises the same rules a
  * real request would.
  */
 @Component
-@Profile("h2")
+@Profile({"postgres", "h2"})
 public class DemoData implements CommandLineRunner {
 
     private final TaskService tasks;

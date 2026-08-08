@@ -1,8 +1,11 @@
 spring:
   application:
     name: sandbox
+  # This is the `postgres` branch: real PostgreSQL is the default for both running and testing.
+  # `docker compose up -d` from the repo root before anything else. The `generic` branch is the
+  # same scaffold on in-memory H2 if you need to work with no container runtime.
   profiles:
-    active: h2          # "test" is used by the test suite; there is no other profile
+    active: postgres    # "test" is used by the test suite; "h2" is the no-Docker escape hatch
   jpa:
     # Off deliberately: entities must be mapped to DTOs inside the service transaction. Leaving it
     # on lets lazy loads fire during JSON serialization, which is how N+1 queries sneak in.
@@ -23,13 +26,82 @@ logging:
     com.templateai: DEBUG
 
 ---
-# ---- h2: the default. In-memory, seeded on boot, rebuilt on every restart. ----
-# MODE=PostgreSQL is a syntax compatibility mode: it reduces the common differences (identifier
-# quoting, LIMIT/OFFSET, COALESCE, identity columns) so ordinary JPA and JPQL written here won't
-# need rewriting later. It is not an emulator — locking, constraint enforcement, isolation
-# behaviour, and native SQL still have to be verified against a real PostgreSQL.
+# ---- postgres: the default. Real locking, real constraints, real isolation. ----
 #
-# show-sql is on: it is the only way to confirm the query you think you wrote is the query that ran.
+#   docker compose up -d          (repo root)
+#   ./mvnw -o spring-boot:run
+#
+# ddl-auto is create-drop, not update: the schema is generated from the entities and changes every
+# few minutes during a build, and `update` silently declines to apply the changes it can't make
+# (narrowing a column, adding a NOT NULL to a populated table), leaving you debugging a schema that
+# doesn't match the code. Dropping is cheaper — DemoData reseeds on every boot.
+#
+# show-sql is on: it is the only way to confirm the query you think you wrote is the query that
+# ran, and on this branch it is specifically how you verify `for update` is really in the SQL.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sandbox
+    username: postgres
+    password: postgres
+    hikari:
+      # Deliberately small. A pool larger than the container's max_connections turns a load spike
+      # into connection errors instead of queueing, and a *tiny* pool is what surfaces a lock you
+      # are holding across a request — a pool of 50 hides it until production.
+      maximum-pool-size: 10
+      # Fail fast rather than hanging the request thread if the container isn't up yet.
+      connection-timeout: 5000
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          # Lets Hibernate batch inserts/updates in one round trip. Harmless here, and it is the
+          # honest answer to "how would you make the write path faster" that costs no design time.
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+---
+# ---- test: the same PostgreSQL, a separate database. -------------------------
+# Needs `docker compose up -d`. That is the point of this branch: the concurrency tests assert
+# behaviour (row locks, unique-violation timing, isolation) that H2 does not reproduce, so running
+# them against H2 would prove nothing about the database the answer is written for.
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sandbox_test
+    username: postgres
+    password: postgres
+    hikari:
+      # Must exceed the widest Concurrently.run(N, ...) in the suite, or the threads serialise
+      # waiting for a connection and the "concurrent" test quietly becomes a sequential one — it
+      # still passes, while proving nothing. Raise this before raising N.
+      maximum-pool-size: 20
+      connection-timeout: 5000
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+logging:
+  level:
+    com.templateai: INFO
+    org.hibernate: WARN
+
+---
+# ---- h2: escape hatch only, for when there is no container runtime. ----------
+# MODE=PostgreSQL is a syntax compatibility mode — identifier quoting, LIMIT/OFFSET, COALESCE,
+# identity columns. It is not an emulator: locking, constraint timing, isolation, and native SQL
+# all differ. Anything you conclude here about concurrency has to be re-checked on the real thing.
+#
+#   ./mvnw -o spring-boot:run -Dspring-boot.run.profiles=h2
 spring:
   config:
     activate:
@@ -50,50 +122,3 @@ spring:
     console:
       enabled: true
       path: /h2-console
-
----
-# ---- postgres: optional, and never needed for the default workflow. ----------
-# Only reach for this if the problem genuinely depends on real PostgreSQL behaviour rather than
-# syntax — row locking under contention, constraint timing, isolation levels, or native SQL. H2's
-# MODE=PostgreSQL covers the syntax; it does not reproduce any of those.
-#
-#   docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
-#   ./mvnw -o spring-boot:run -Dspring-boot.run.profiles=postgres
-#
-# ddl-auto: update rather than create-drop, so a restart doesn't discard the data you just made.
-spring:
-  config:
-    activate:
-      on-profile: postgres
-  datasource:
-    url: jdbc:postgresql://localhost:5432/sandbox
-    driver-class-name: org.postgresql.Driver
-    username: postgres
-    password: postgres
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        format_sql: true
-
----
-# ---- test: isolated database, quiet logs, no demo seed. ----------------------
-spring:
-  config:
-    activate:
-      on-profile: test
-  datasource:
-    url: jdbc:h2:mem:test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    show-sql: false
-logging:
-  level:
-    com.templateai: INFO
-    org.hibernate: WARN

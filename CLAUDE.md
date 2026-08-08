@@ -1,6 +1,8 @@
 # Working agreement
 
-Java 21 / Spring Boot 3.4 / Maven / H2 in-memory. Vanilla-JS frontend, no build step.
+Java 21 / Spring Boot 3.4 / Maven / **PostgreSQL 16 in Docker**. Vanilla-JS frontend, no build step.
+This is the `postgres` branch; `generic` is the identical scaffold on in-memory H2. Everything below
+applies to both except the **PostgreSQL** section.
 This repo is a domain-neutral scaffold for a ~1-hour live-coding interview. **Speed and clarity
 beat completeness.** Read this before writing code.
 
@@ -271,19 +273,83 @@ avoids, and mid-interview is the worst time to pay it.
 ## Commands
 
 ```bash
+docker compose up -d          # repo root, FIRST — nothing else works without it
 cd sandbox
 ./mvnw -o spring-boot:run     # http://localhost:8080  (offline flag skips dependency resolution)
-./mvnw -o test                # whole suite
+./mvnw -o test                # whole suite, against the sandbox_test database
 ./mvnw -o test -Dtest=TaskApiIT
 ```
 
-Report the test count and result you actually saw. Never state one you didn't run.
+Report the test count and result you actually saw. Never state one you didn't run. **"The container
+isn't up" is a legitimate answer** — say that rather than running the suite on `h2` and reporting
+the number as if it came from PostgreSQL.
 
 `-o` only works because `~/.m2` is already populated. If you change `pom.xml`, drop the `-o` for
 the next run so the new dependency can download, then go back to offline.
 
-Swagger `/swagger-ui.html` · H2 console `/h2-console` (jdbc:h2:mem:sandbox, `sa`, no password).
-Demo data is seeded by `DemoData.java` on the `h2` profile only.
+Swagger `/swagger-ui.html` · `psql postgresql://postgres:postgres@localhost:5432/sandbox`, or
+`docker compose exec postgres psql -U postgres sandbox`. Demo data is seeded by `DemoData.java` on
+the `postgres` and `h2` profiles, never on `test`.
+
+No-Docker fallback: `./mvnw -o spring-boot:run -Dspring-boot.run.profiles=h2`. It gets the UI
+running; it does **not** validate anything in the section below, so don't claim it did.
+
+## PostgreSQL — what this branch buys, and how not to waste it
+
+The whole reason to be on this branch is that assertions about **concurrency and constraints are
+now real**. H2's `MODE=PostgreSQL` reproduces syntax, not behaviour. So:
+
+**Verify the lock actually applied.** `show-sql` is on under `postgres`. When you use
+`@Lock(PESSIMISTIC_WRITE)`, read the generated SQL and confirm `for update` is there — on this
+stack the annotation emits it on a *derived* finder but silently did not on an explicit `@Query`.
+Saying "I confirmed `for update` in the logs" is worth more than the code that produced it.
+
+**Prefer the constraint to the lock.** PostgreSQL gives you enforcement H2 can't, and each of these
+makes the invariant unrepresentable rather than merely defended:
+
+- `@Table(uniqueConstraints = @UniqueConstraint(columnNames = {...}))` — one row per (seat, event).
+- A **partial** unique index for "at most one *active* X per Y", the single most common real
+  invariant and the one a plain unique index gets wrong (it also blocks the cancelled rows):
+  `create unique index ... on holds (seat_id) where status = 'ACTIVE'` — declare it with
+  `@Table(indexes = ...)`? No: Hibernate can't express a `where` clause. Put it in a
+  `schema.sql`-style `@Sql` or an `EntityManager.createNativeQuery(...)` in a `@PostConstruct`-free
+  startup component, and say out loud that in production it is a migration.
+- A `check` constraint for `balance >= 0` — the ledger invariant that survives every bug above it.
+
+**The unique violation is a 409, not a 500.** A constraint doing its job surfaces as
+`DataIntegrityViolationException` at flush/commit — which is *outside* your service method, so a
+try/catch inside it never sees it. `GlobalExceptionHandler` already maps it to 409, along with
+`OptimisticLockingFailureException` (`@Version`) and `PessimisticLockingFailureException`
+(serialization failure 40001, deadlock 40P01, lock timeout). All four are retryable conflicts, not
+server faults. **Don't try/catch any of them in a service** to produce a status.
+
+**`ON CONFLICT` beats read-then-insert.** For idempotency keys and upserts, one native
+`insert ... on conflict (key) do nothing`/`do update` is atomic; `if (!repo.existsBy(...))` followed
+by a save is a race with a friendly-looking body.
+
+**`FOR UPDATE SKIP LOCKED` is the answer to "how does the worker pool not double-process".** A
+status column plus `select ... where status = 'PENDING' order by id for update skip locked limit 1`
+is a real queue on the database you already have. This is the strongest argument available for *not*
+adding Kafka — make it instead of hand-waving.
+
+**Don't reach for `SERIALIZABLE` casually.** Default is `READ COMMITTED`. Raising isolation moves
+the failure from "wrong data" to "`could not serialize access` at commit, which the caller must
+retry" — a real answer, but only if you name the retry. Row locks or a constraint are cheaper and
+demo better inside the hour.
+
+**Money is `BIGINT` minor units or `NUMERIC(19,4)`, never `double`.** On a card/ledger problem this
+is table stakes and getting it wrong is remembered. `@Column(precision = 19, scale = 4)` for
+`BigDecimal`; compare limits as `amount > limit - used` (see **Numbers that must be exact**).
+
+**The connection pool is small on purpose** (10 app / 20 test). A `Concurrently.run(N, ...)` with N
+above the *test* pool size serialises on connection acquisition and quietly stops being concurrent —
+the test still passes and proves nothing. If you raise N, raise `maximum-pool-size` with it and say
+you checked.
+
+**No Flyway, deliberately.** `ddl-auto: create-drop` on both databases; the schema changes every few
+minutes during a build. The honest line is "versioned migrations from the first release, generated
+schema while the model is still moving" — and note that `update` was rejected too, because it
+silently declines the changes it can't apply.
 
 ## Definition of done for a feature
 

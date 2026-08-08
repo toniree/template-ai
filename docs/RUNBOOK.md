@@ -28,12 +28,14 @@ delete a test, and its only job is to let you notice tests that have silently st
 cleared `~/.m2`, or **any `pom.xml` change** breaks it until you run online again. That's why the
 offline run is a verification step and not just a habit.
 
+- [ ] `docker compose up -d` from the repo root, container reports healthy
 - [ ] Online run done, then `./mvnw -o clean test` passes offline with the same test count
-- [ ] App boots and the UI lists the seeded tasks
+- [ ] App boots on the `postgres` profile and the UI lists the seeded tasks
+- [ ] `docker` daemon starts on login (or you know the one command that starts it)
 - [ ] `/` and `/swagger-ui.html` both load, and `/v3/api-docs` returns JSON (not a 500)
 - [ ] Agent open at the **repo root** so it picks up `CLAUDE.md`
 - [ ] `prompts/QUICK.md` open in a tab, ready to paste
-- [ ] Swagger and the H2 console `/h2-console` open in tabs
+- [ ] Swagger open in a tab, and a `docker compose exec postgres psql -U postgres sandbox` shell ready
 - [ ] Screen share rehearsed: editor, browser, terminal all visible without alt-tab hunting
 - [ ] Clean git tree, and you know the checkpoint habit below
 

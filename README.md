@@ -4,14 +4,24 @@ A domain-neutral Spring Boot starter for AI-assisted coding interviews. It boots
 database, REST API, typed errors, Swagger, a small frontend, and a fast test suite — so the hour
 goes into the problem you were actually given, not into scaffolding.
 
-**Java 21 · Spring Boot 3.4 · H2 in-memory · vanilla-JS UI, no build step**
+**Java 21 · Spring Boot 3.4 · PostgreSQL 16 in Docker · vanilla-JS UI, no build step**
+
+> **This is the `postgres` branch.** It is the same scaffold as `generic`, with real PostgreSQL as
+> the default for both running the app and running the suite. Use it when the problem turns on
+> database behaviour — row locking under contention, constraint timing, isolation, `SKIP LOCKED`,
+> `ON CONFLICT`. Use `generic` (in-memory H2, no Docker) when it doesn't.
 
 ```bash
+docker compose up -d          # repo root, FIRST — nothing works without it
 cd sandbox
 ./mvnw clean test             # ONCE, online — populates ~/.m2 (see below)
 ./mvnw -o spring-boot:run     # http://localhost:8080 — seeded and clickable
-./mvnw -o test                # whole suite
+./mvnw -o test                # whole suite, against the sandbox_test database
 ```
+
+The compose file runs one container with two databases: `sandbox` for the app and `sandbox_test`
+for the suite, so a test run can't drop the schema out from under a live demo. `docker compose
+down -v` throws it all away.
 
 **Run Maven online at least once before relying on `-o`.** The `-o` (offline) flag doesn't
 download anything — it only works once every dependency is already in `~/.m2`. On a fresh machine,
@@ -95,7 +105,7 @@ sandbox/
     common/          ApiError, ApiException, GlobalExceptionHandler, CurrentUser,
                      AppConfig (Clock), RequestLoggingFilter        ← reusable, leave alone
     task/            Task, TaskRepository, TaskDtos, TaskService, TaskController
-    DemoData.java    seeds the h2 profile so the UI is never empty
+    DemoData.java    seeds postgres/h2 (never test) so the UI is never empty
   src/main/resources/static/
     app.js           the whole UI — one screen, written directly, no renderer framework
     index.html, styles.css
@@ -176,28 +186,37 @@ X throughput; below that it's a transaction" beats a half-wired broker.
 
 | Profile | Use |
 |---|---|
-| `h2` (default) | in-memory, seeded on boot, zero setup — what you demo on |
-| `test` | isolated in-memory database, no seed data, quiet logs |
-| `postgres` | optional, and never needed for the default workflow — see below |
+| `postgres` (default) | real PostgreSQL from `docker compose`, seeded on boot — what you demo on |
+| `test` | the same container, separate `sandbox_test` database, no seed data, quiet logs |
+| `h2` | escape hatch for when there is no container runtime — see the caveat below |
 
-The `postgres` profile exists for the one case H2 can't answer: real locking under contention,
-constraint timing, isolation levels, or native SQL. It is the only thing here that wants Docker,
-and you should not reach for it during an interview.
+**Schema:** Hibernate generates it from the entities, `create-drop` on every profile. There is no
+Flyway or Liquibase, deliberately: in a 50-minute build the schema changes every few minutes, and
+hand-writing a migration for each change buys nothing when the database is thrown away on restart.
+Say that if asked — "versioned migrations from the first release, generated schema while the model
+is still moving" is the honest answer. `update` was rejected too: it silently declines the changes
+it can't apply (narrowing a column, adding `NOT NULL` to a populated table), which leaves you
+debugging a schema that doesn't match your code.
 
-**Schema:** Hibernate generates it from the entities — `create-drop` on `h2` and `test`, `update` on
-`postgres`. There is no Flyway or Liquibase, deliberately: in a 50-minute build the schema changes
-every few minutes, and hand-writing a migration for each change buys nothing when the database is
-thrown away on restart. Say that if asked — "versioned migrations from the first release, generated
-schema while the model is still moving" is the honest answer, and adding Flyway here would cost
-minutes per entity change for no benefit inside the hour.
+**Connection pools are small on purpose** — 10 for the app, 20 for the suite. A pool larger than the
+container's `max_connections` turns a spike into connection errors instead of queueing, and a big
+pool hides a lock you're holding across a whole request. The test pool matters more than it looks:
+a `Concurrently.run(N, ...)` with `N` above the pool size serialises on connection acquisition and
+stops being a concurrency test at all, while still passing. Raise the pool before raising `N`.
+
+### The H2 escape hatch
 
 ```bash
-docker run --rm -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sandbox postgres:16
-./mvnw -o spring-boot:run -Dspring-boot.run.profiles=postgres
+./mvnw -o spring-boot:run -Dspring-boot.run.profiles=h2
 ```
 
 H2 runs in `MODE=PostgreSQL`, which reduces the common syntax differences — identifier quoting,
 `LIMIT`/`OFFSET`, `COALESCE`, sequence and identity declarations — so ordinary JPA and JPQL written
-here won't need rewriting later. It is a compatibility mode, not an emulator: **locking behaviour,
+here won't need rewriting. It is a compatibility mode, not an emulator: **locking behaviour,
 constraint enforcement, transaction isolation, and any native SQL still have to be verified against
-a real PostgreSQL** before you rely on them. Say that rather than claiming portability.
+a real PostgreSQL** before you rely on them. It gets the UI up when Docker isn't available; it does
+not validate a single claim about concurrency. Say that rather than claiming portability.
+
+The test suite has no H2 mode on this branch — it points at `sandbox_test` and fails to connect
+without the container. That is deliberate: a green suite on H2 would be evidence about the wrong
+database.

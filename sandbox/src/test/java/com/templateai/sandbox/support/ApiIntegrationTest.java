@@ -18,13 +18,18 @@ import com.templateai.sandbox.common.CurrentUser;
  * Base for API tests: real HTTP, real database, no mocks. Extend it and you get {@link #http} and
  * {@link #json} wired, on the isolated {@code test} profile.
  *
+ * <p><b>This branch runs the suite against real PostgreSQL</b> ({@code sandbox_test}, created by
+ * the repo-root {@code docker compose up -d}). Without the container up, every test here fails to
+ * connect — that is deliberate, because the concurrency assertions are only meaningful against the
+ * database the answer is written for.
+ *
  * <p>Everything here composes with ordinary MockMvc rather than hiding it — build requests with the
  * usual {@code get(...)}/{@code post(...)} static imports and reach for these helpers only where
  * they save a line. A test you can read aloud beats a test that needs this class explained first.
  *
  * <p><b>Deliberately not {@code @Transactional}.</b> Rolling each test back would be tidier, but it
  * also hides commit-time behaviour — constraint violations that only fire on flush, and anything
- * concurrent (see {@link Concurrently}). The suite shares one H2 database instead, so each test
+ * concurrent (see {@link Concurrently}). The suite shares one database instead, so each test
  * creates the rows it asserts on and never asserts on table-wide counts.
  */
 @SpringBootTest

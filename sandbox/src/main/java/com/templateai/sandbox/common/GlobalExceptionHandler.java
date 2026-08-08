@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -77,6 +78,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(body(HttpStatus.CONFLICT, "Resource was modified by another request; re-read and retry",
                         List.of()));
+    }
+
+    /**
+     * PostgreSQL refused to commit because of contention, not because the request was wrong:
+     * a serialization failure under {@code SERIALIZABLE} (SQLSTATE 40001), a deadlock the server
+     * chose this transaction to break (40P01), or a lock-timeout waiting on {@code for update}.
+     * Spring translates all three into subtypes of this exception.
+     *
+     * <p>Every one of them is retryable — the same request, sent again, can succeed — so a 500 is
+     * the wrong answer: it tells the caller "our fault, state unknown" about a transaction that
+     * cleanly rolled back. This handler only exists on the PostgreSQL branch; H2 does not produce
+     * these, which is precisely the point of running the suite against the real database.
+     */
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleContention(PessimisticLockingFailureException ex) {
+        log.warn("Transaction lost to contention: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body(HttpStatus.CONFLICT, "Conflicting concurrent request; retry", List.of()));
     }
 
     /** Genuinely unexpected. Log the stack, never leak it to the caller. */

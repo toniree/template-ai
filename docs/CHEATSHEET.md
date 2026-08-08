@@ -13,8 +13,23 @@ cd sandbox
 ./mvnw -o clean compile                                    # compile only, no tests
 ```
 
-`/swagger-ui.html` · `/h2-console` (`jdbc:h2:mem:sandbox`, user `sa`, blank password) ·
-`/actuator/health`
+`/swagger-ui.html` · `/actuator/health` · psql:
+`docker compose exec postgres psql -U postgres sandbox`
+
+Bring the database up first, from the repo root: `docker compose up -d` (`down -v` to discard).
+The app uses `sandbox`, the suite uses `sandbox_test`, both in the same container.
+
+**If Docker dies mid-interview**, don't lose the suite — override the datasource on the command
+line, which beats the profile's values without editing a file:
+
+```bash
+./mvnw -o test '-Dspring.datasource.url=jdbc:h2:mem:sanity;MODE=PostgreSQL;DB_CLOSE_DELAY=-1' \
+  -Dspring.datasource.username=sa -Dspring.datasource.password= \
+  -Dspring.datasource.driver-class-name=org.h2.Driver
+./mvnw -o spring-boot:run -Dspring-boot.run.profiles=h2
+```
+
+Say that you fell back, and that nothing about locking or constraint timing is proven by that run.
 
 ## curl
 
@@ -191,7 +206,7 @@ as "what to type", not "what will behave identically".
 
 `NOLOCK` has no equivalent and isn't needed — Postgres readers don't block writers (MVCC).
 
-## SQL you'll want at the H2 console
+## SQL you'll want at psql
 
 ```sql
 SELECT * FROM tasks ORDER BY id;
@@ -199,7 +214,31 @@ SELECT status, COUNT(*) FROM tasks GROUP BY status;
 
 CREATE INDEX ix_tasks_created ON tasks (created_at);
 ALTER TABLE tasks ADD COLUMN assignee VARCHAR(120);
+
+-- "at most one ACTIVE row per key" — the invariant a plain unique index gets wrong,
+-- because it would also collide on the cancelled rows.
+CREATE UNIQUE INDEX ux_tasks_one_active ON tasks (assignee) WHERE status = 'IN_PROGRESS';
+
+-- who is blocking whom, when a demo hangs
+SELECT pid, wait_event_type, wait_event, left(query, 60) FROM pg_stat_activity WHERE state <> 'idle';
+SELECT pg_blocking_pids(pid), pid, left(query, 60) FROM pg_stat_activity WHERE cardinality(pg_blocking_pids(pid)) > 0;
 ```
+
+## Postgres patterns worth naming out loud
+
+```sql
+-- a work queue on the database you already have; the answer to "why not Kafka"
+SELECT * FROM jobs WHERE status = 'PENDING' ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1;
+
+-- idempotency / upsert, atomic. Beats exists()-then-save, which is a race.
+INSERT INTO payments (idempotency_key, ...) VALUES (?, ...) ON CONFLICT (idempotency_key) DO NOTHING;
+
+-- the invariant that survives every bug above it
+ALTER TABLE accounts ADD CONSTRAINT balance_non_negative CHECK (balance_minor >= 0);
+```
+
+Money is `BIGINT` in minor units (or `NUMERIC(19,4)`), never `double`. Compare a limit as
+`amount > limit - used`, never `used + amount > limit`.
 
 ## Gotchas that cost minutes
 

@@ -1,0 +1,42 @@
+# Real PostgreSQL for the `postgres` branch. One container, two databases:
+#
+#   sandbox        the app  (./mvnw -o spring-boot:run)
+#   sandbox_test   the suite (./mvnw -o test)
+#
+# They are separate because both use ddl-auto: create-drop — a test run would otherwise drop the
+# schema out from under a running app mid-demo, which is a spectacular way to lose five minutes.
+#
+#   docker compose up -d      # wait for healthy, ~2s
+#   docker compose down -v    # stop and discard the data
+services:
+  postgres:
+    image: postgres:16
+    container_name: sandbox-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: sandbox
+    ports:
+      - "5432:5432"
+    # No named volume, deliberately: the schema is generated from the entities and changes every
+    # few minutes during a build. A persisted volume only preserves rows the next `create-drop`
+    # throws away anyway.
+    tmpfs:
+      - /var/lib/postgresql/data
+    command:
+      # Louder than the default so contention is visible in `docker compose logs` while you demo:
+      # every statement, plus any lock you waited more than 200ms for.
+      - postgres
+      - -c
+      - log_statement=all
+      - -c
+      - log_lock_waits=on
+      - -c
+      - deadlock_timeout=200ms
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sandbox"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
