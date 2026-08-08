@@ -259,7 +259,7 @@ Money is `BIGINT` in minor units (or `NUMERIC(19,4)`), never `double`. Compare a
   actually in the logged SQL. A read-modify-write you believe is protected but isn't will still race.
 - **A green concurrency test that proves nothing** — always check it *fails* when you remove the
   fix. Thread timing makes false passes common, especially inside a larger suite.
-- **Tests interfering** — the suite shares one H2 database. Assert on rows you created, never on
+- **Tests interfering** — the suite shares one database. Assert on rows you created, never on
   table-wide counts.
 - **Jackson can't deserialize a record** — JSON field names must match the record components exactly.
 - **Schema didn't change** — `ddl-auto: create-drop` rebuilds on restart; if you edited an entity

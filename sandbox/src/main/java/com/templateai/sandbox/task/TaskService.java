@@ -60,6 +60,15 @@ public class TaskService {
      * Partial update: only the fields the caller actually sent are applied. Any status may follow
      * any other — this sample deliberately has no state machine. If a problem needs one, put the
      * check in a single private method here rather than scattering ifs.
+     *
+     * <p><b>{@code null} means "not sent," so a nullable field can never be cleared back to
+     * {@code null} through this endpoint</b> — {@code {"description": null}} and an omitted
+     * {@code description} are indistinguishable once Jackson deserializes them. That's the
+     * intentional tradeoff for a plain request record (see CLAUDE.md, "Request records"): the
+     * presence-aware alternative is a {@code JsonNullable<T>}-wrapped field or a raw
+     * {@code Map}/{@code JsonNode} read, and neither is worth it unless a stated requirement
+     * actually needs "clear this field" as a distinct operation from "leave it alone." If one
+     * does, that field switches to one of those; the rest of the DTO stays plain.
      */
     public TaskResponse update(Long id, UpdateTaskRequest request) {
         Task task = require(id);

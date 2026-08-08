@@ -92,9 +92,13 @@ a product.
 | `Concurrently` | Fires N overlapping attempts at one row and counts winners — `Concurrently.run(8, attempt).assertExactlyOneWon()`. The test that proves your invariant actually holds, and the one interviewers remember. |
 | `MutableClock` | A `Clock` you advance by hand, so a five-minute expiry rule costs no wall-clock time to test. `@Import(MutableClock.Config.class)`. |
 
-`TaskApiIT` uses all of these — it is the file to copy for a new feature. The helpers are themselves
-covered by `SupportTest` and `MutableClockIT`, so a green suite means the tools work, not just your
-code.
+`TaskApiIT` covers `ApiIntegrationTest` and `ApiErrors` — it is the file to copy for a new feature's
+happy path and error cases. `Concurrently` and `MutableClock` aren't exercised by the sample domain
+(`Task` has no contended invariant or expiry rule to prove); reach for them, and their own coverage
+in `SupportTest`/`MutableClockIT`, when your feature actually has one. **On this branch specifically:
+"real PostgreSQL" only means the suite runs against it — it doesn't mean a lock/contention test
+exists yet.** Nothing here has proven a `for update` claim true until you write a `Concurrently` test
+for the feature that needs it and watch it fail without the fix.
 
 ## Identity
 
@@ -175,9 +179,13 @@ state cannot be returned to.
 
 ## Deliberately not here
 
-Auth, authorization, rate limiting, caching, async/queues, containerisation, an external database,
-a frontend build step, and a CI pipeline. Nothing in the default workflow needs Docker, a network,
-or any service you have to start yourself — `./mvnw -o spring-boot:run` is the whole setup.
+Auth, authorization, rate limiting, caching, async/queues, a frontend build step, and a CI pipeline.
+
+**On this branch** (`postgres`), that list does *not* include an external database: real PostgreSQL
+is the default, `./run.sh` is the whole setup, and `scripts/ensure-postgres.sh` starts it for you
+(Docker if you have it, Homebrew otherwise). That's the point of this branch — see the top of this
+README. The `generic` branch is the version where the claim above is fully true: in-memory H2, no
+network, no service to start, `./mvnw -o spring-boot:run` and nothing else.
 
 That is a scoping decision, not an oversight, and the reasoning is worth being able to state:
 

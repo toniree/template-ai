@@ -23,8 +23,9 @@ import com.templateai.sandbox.task.TaskDtos.CreateTaskRequest;
  * Error outcomes are asserted with {@code ApiErrors} so the whole error body is checked, not just
  * the status line.
  *
- * <p>The suite shares one H2 database, so every test creates its own rows and asserts on those —
- * never on table-wide counts, which break the moment another test runs alongside.
+ * <p>The suite shares one database (real PostgreSQL, {@code sandbox_test}, on this branch), so
+ * every test creates its own rows and asserts on those — never on table-wide counts, which break
+ * the moment another test runs alongside.
  */
 class TaskApiIT extends ApiIntegrationTest {
 

@@ -252,7 +252,9 @@ practical reason for the rule — a five-minute hold rule is otherwise a five-mi
 principal. Assert error outcomes with `support/ApiErrors` — `created()`, `validationError("title
 must not be blank")`, `notFound()`, `conflict()` — which check the whole `ApiError` body rather than
 just the status line, so a handler returning the right code with the wrong shape still fails.
-`TaskApiIT` uses all of it; copy that file. Prefer a few integration tests over real HTTP and a real
+`TaskApiIT` uses `ApiIntegrationTest`/`ApiErrors`; copy that file for a new feature. It doesn't
+exercise `Concurrently` or `MutableClock` — reach for those when the feature actually has a
+contended invariant or an expiry rule (see the PostgreSQL section below). Prefer a few integration tests over real HTTP and a real
 database to many mocked unit tests — a mocked service test mostly asserts that you wrote the mock
 correctly. The suite shares one database, so assert on rows your test created, never on table-wide
 counts.
