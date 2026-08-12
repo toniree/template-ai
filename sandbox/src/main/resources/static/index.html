@@ -3,14 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Task Board</title>
+  <title>Card Authorization</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <nav class="topnav">
-    <span class="brand">Task Board</span>
+    <span class="brand">Card Authorization</span>
     <div class="nav-links">
-      <a href="/help">How it works</a>
       <a href="/swagger-ui.html" target="_blank" rel="noopener">API</a>
     </div>
   </nav>
@@ -19,70 +18,86 @@
 
   <main>
     <header class="page-header">
-      <h1>Tasks</h1>
-      <p class="subtitle">The sample screen. Replace it with whatever the interview actually asks for.</p>
+      <h1>Corporate cards</h1>
+      <p class="subtitle">Seeded demo cards and merchants — run a purchase against one below.</p>
     </header>
 
-    <section class="panel">
-      <h2>New task</h2>
-      <form id="create-form" class="form-row">
-        <label>Title
-          <input type="text" name="title" maxlength="200" placeholder="Ship the first slice" required>
-        </label>
-        <label class="grow">Description
-          <input type="text" name="description" maxlength="2000" placeholder="Optional">
-        </label>
-        <button type="submit" class="btn btn-primary">Add task</button>
-      </form>
-      <p id="form-error" class="error" role="alert" hidden></p>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <h2>All tasks</h2>
-        <div class="panel-actions">
-          <select id="status-filter" aria-label="Filter by status">
-            <option value="">All statuses</option>
-          </select>
-          <button id="refresh" type="button" class="btn btn-secondary">Refresh</button>
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Cards</h2>
+          <button id="refresh-cards" type="button" class="btn btn-secondary btn-small">Refresh</button>
         </div>
-      </div>
-
-      <p id="list-error" class="error" role="alert" hidden></p>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Description</th>
-              <th>Status</th>
-              <th>Updated</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="task-rows"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!--
-      Detail view. Second screen shape: fetch one record by id and show fields a list can't fit.
-      Kept as its own panel and its own render function rather than being folded into the table —
-      copy this block for a detail screen, don't try to make one renderer serve both.
-    -->
-    <section id="detail-panel" class="panel" hidden>
-      <div class="panel-header">
-        <h2 id="detail-title">Task</h2>
-        <div class="panel-actions">
-          <button id="close-detail" type="button" class="btn btn-secondary btn-small">Close</button>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Last 4</th><th>Balance</th></tr>
+            </thead>
+            <tbody id="card-rows"></tbody>
+          </table>
         </div>
-      </div>
+        <p class="muted" style="margin-top: 10px;">
+          Card 1 (••1111): active. Card 2 (••2222): deactivated. Card 3 (••3333): low balance ($5.00).
+          Card 1 is blocked by merchant "Blocked Co".
+        </p>
 
-      <p id="detail-error" class="error" role="alert" hidden></p>
-      <dl id="detail-fields" class="detail-grid"></dl>
-    </section>
+        <div class="panel-header" style="margin-top: 22px;">
+          <h2>Merchants</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Name</th><th>Location</th></tr>
+            </thead>
+            <tbody id="merchant-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Make a purchase</h2>
+        <form id="purchase-form" class="form-grid">
+          <label>Card number
+            <input type="text" name="cardNum" placeholder="4111111111111111" required>
+          </label>
+          <label>Expiry (MM/YY)
+            <input type="text" name="expiryDate" placeholder="12/29" required>
+          </label>
+          <label>CVC
+            <input type="text" name="cvc" placeholder="123" required>
+          </label>
+          <label>Amount (USD)
+            <input type="number" name="amount" step="0.01" min="0.01" placeholder="25.00" required>
+          </label>
+          <label>Merchant
+            <select name="merchantId" id="merchant-select" required></select>
+          </label>
+          <label>Item (optional)
+            <input type="text" name="item" placeholder="Paper">
+          </label>
+          <label class="grow">Idempotency key
+            <input type="text" name="idempotencyKey" id="idempotency-key">
+          </label>
+          <button type="submit" class="btn btn-primary">Submit purchase</button>
+          <button type="button" id="new-key" class="btn btn-secondary">New key</button>
+        </form>
+        <p id="form-error" class="error" role="alert" hidden></p>
+        <div id="purchase-result" class="result-panel" hidden></div>
+
+        <div class="panel-header" style="margin-top: 22px;">
+          <h2>Recent transactions</h2>
+          <button id="refresh-transactions" type="button" class="btn btn-secondary btn-small">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>ID</th><th>Card</th><th>Merchant</th><th>Amount</th><th>Status</th><th>Reason</th><th>When</th></tr>
+            </thead>
+            <tbody id="transaction-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
 
   <script src="/app.js"></script>

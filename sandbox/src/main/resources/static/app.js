@@ -1,22 +1,11 @@
 /*
- * The whole UI: one screen over one REST resource, written directly against the DOM.
- *
- * Deliberately not a config-driven renderer. At one or two screens the indirection costs more than
- * it saves, and widening a generic renderer to fit an unlike screen (a dashboard, a wizard, a
- * detail view) is the most expensive mistake you can make mid-interview. If you need a second
- * screen, copy the parts you need; if you need a different kind of screen, write it separately.
- *
- * Retargeting this to a new resource: change API, STATUSES/STATUS_LABELS, the <thead> in
- * index.html, and the cells in taskRow(). Everything else is domain-free.
+ * Card authorization demo: seeded cards/merchants, a purchase form, and a recent-transactions
+ * table. Bespoke screen against the DOM, not a config-driven renderer — see CLAUDE.md.
  */
-
-const API = "/api/tasks";
-const STATUSES = ["TODO", "IN_PROGRESS", "DONE"];
-const STATUS_LABELS = { TODO: "To do", IN_PROGRESS: "In progress", DONE: "Done" };
 
 const el = (id) => document.getElementById(id);
 
-let tasks = [];
+const STATUS_LABELS = { SUCCESS: "Approved", FAIL: "Declined", PENDING: "Pending" };
 
 // ---- helpers --------------------------------------------------------------
 
@@ -24,6 +13,8 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
+
+const dollars = (minor) => `$${(minor / 100).toFixed(2)}`;
 
 const timestamp = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
@@ -36,186 +27,150 @@ function toast(text, type = "success") {
   setTimeout(() => node.remove(), 4000);
 }
 
-/** Every call goes through here, so the backend's ApiError shape is parsed in exactly one place. */
-async function request(path, { method = "GET", body } = {}) {
+function newIdempotencyKey() {
+  return crypto.randomUUID();
+}
+
+/** Every call goes through here so the backend's ApiError shape is parsed in exactly one place. */
+async function request(path, { method = "GET", body, headers } = {}) {
   const response = await fetch(path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: body ? { "Content-Type": "application/json", ...headers } : headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 
+  const parsed = await response.json().catch(() => null);
   if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    try {
-      const error = await response.json();
-      message = error.details?.length ? `${error.message}: ${error.details.join("; ")}` : error.message || message;
-    } catch {
-      /* non-JSON error body — keep the status-code message */
-    }
+    const message = parsed?.details?.length
+      ? `${parsed.message}: ${parsed.details.join("; ")}`
+      : parsed?.message || `Request failed (${response.status})`;
     throw new Error(message);
   }
-  return response.status === 204 ? null : response.json();
+  return parsed;
 }
 
-// ---- rendering ------------------------------------------------------------
+// ---- cards / merchants ------------------------------------------------------
 
-function render() {
-  const body = el("task-rows");
-  if (!tasks.length) {
-    body.innerHTML = `<tr><td colspan="6" class="empty">No tasks yet</td></tr>`;
-    return;
-  }
-  body.replaceChildren(...tasks.map(taskRow));
-}
-
-/** Placeholder row while a fetch is in flight, so the table never looks empty-but-loaded. */
-function renderLoading() {
-  el("task-rows").innerHTML = `<tr><td colspan="6" class="empty">Loading…</td></tr>`;
-}
-
-function taskRow(task) {
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td>${task.id}</td>
-    <td>${escapeHtml(task.title)}</td>
-    <td class="muted">${task.description ? escapeHtml(task.description) : "—"}</td>
-    <td>
-      <select class="status" data-status="${task.status}" aria-label="Status">
-        ${STATUSES.map((s) =>
-          `<option value="${s}" ${s === task.status ? "selected" : ""}>${STATUS_LABELS[s]}</option>`).join("")}
-      </select>
-    </td>
-    <td class="muted">${timestamp(task.updatedAt)}</td>
-    <td class="row-actions">
-      <button type="button" class="btn btn-secondary btn-small" data-act="view">View</button>
-      <button type="button" class="btn btn-secondary btn-small" data-act="delete">Delete</button>
-    </td>`;
-
-  const status = tr.querySelector("select");
-  status.addEventListener("change", () =>
-    act(status, () => request(`${API}/${task.id}`, { method: "PATCH", body: { status: status.value } }),
-      "Status updated"));
-
-  tr.querySelector('[data-act="view"]').addEventListener("click", () => openDetail(task.id));
-
-  const remove = tr.querySelector('[data-act="delete"]');
-  remove.addEventListener("click", () =>
-    act(remove, () => request(`${API}/${task.id}`, { method: "DELETE" }), "Task deleted"));
-
-  return tr;
-}
-
-// ---- detail view ----------------------------------------------------------
-
-/** Fetches one record by id. Its own request and its own render — not a filtered list row. */
-async function openDetail(id) {
-  const panel = el("detail-panel");
-  const error = el("detail-error");
-  const fields = el("detail-fields");
-
-  panel.hidden = false;
-  error.hidden = true;
-  fields.innerHTML = `<div class="empty">Loading…</div>`;
-  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
+async function loadCards() {
+  const rows = el("card-rows");
+  rows.innerHTML = `<tr><td colspan="3" class="empty">Loading…</td></tr>`;
   try {
-    const task = await request(`${API}/${id}`);
-    el("detail-title").textContent = task.title;
-    fields.replaceChildren(...[
-      ["ID", task.id],
-      ["Title", task.title],
-      ["Description", task.description || "—"],
-      ["Status", STATUS_LABELS[task.status] ?? task.status],
-      ["Created", timestamp(task.createdAt)],
-      ["Updated", timestamp(task.updatedAt)],
-    ].flatMap(([label, value]) => {
-      const dt = document.createElement("dt");
-      dt.textContent = label;
-      const dd = document.createElement("dd");
-      dd.textContent = value;
-      return [dt, dd];
+    const cards = await request("/api/cards");
+    rows.innerHTML = cards.length ? "" : `<tr><td colspan="3" class="empty">No cards</td></tr>`;
+    rows.replaceChildren(...cards.map((card) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${card.id}</td><td class="mono">••${escapeHtml(card.last4)}</td><td>${dollars(card.balanceMinor)}</td>`;
+      return tr;
     }));
   } catch (err) {
-    fields.replaceChildren();
-    error.textContent = err.message;
-    error.hidden = false;
+    rows.innerHTML = `<tr><td colspan="3" class="empty">${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
-el("close-detail").addEventListener("click", () => {
-  el("detail-panel").hidden = true;
-});
-
-/**
- * Runs a row action with the control disabled for the duration, so an impatient double-click is
- * one request rather than two. Reloads either way — on failure that resyncs the row back to what
- * the server actually holds, instead of leaving the select showing a change that never landed.
- */
-async function act(control, run, message) {
-  control.disabled = true;
+async function loadMerchants() {
+  const rows = el("merchant-rows");
+  const select = el("merchant-select");
+  rows.innerHTML = `<tr><td colspan="3" class="empty">Loading…</td></tr>`;
   try {
-    await run();
-    toast(message);
+    const merchants = await request("/api/merchants");
+    rows.innerHTML = merchants.length ? "" : `<tr><td colspan="3" class="empty">No merchants</td></tr>`;
+    rows.replaceChildren(...merchants.map((m) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${m.id}</td><td>${escapeHtml(m.name)}</td><td class="muted">${escapeHtml(m.location)}</td>`;
+      return tr;
+    }));
+    select.replaceChildren(...merchants.map((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = `${m.name} (#${m.id})`;
+      return opt;
+    }));
   } catch (err) {
-    toast(err.message, "error");
-  } finally {
-    await load();
+    rows.innerHTML = `<tr><td colspan="3" class="empty">${escapeHtml(err.message)}</td></tr>`;
   }
 }
 
-// ---- actions --------------------------------------------------------------
-
-async function load() {
-  const status = el("status-filter").value;
-  const error = el("list-error");
-  error.hidden = true;
-  renderLoading();
-
+async function loadTransactions() {
+  const rows = el("transaction-rows");
+  rows.innerHTML = `<tr><td colspan="7" class="empty">Loading…</td></tr>`;
   try {
-    tasks = await request(status ? `${API}?status=${status}` : API);
+    const transactions = await request("/api/transactions");
+    rows.innerHTML = transactions.length ? "" : `<tr><td colspan="7" class="empty">No transactions yet</td></tr>`;
+    rows.replaceChildren(...transactions.map((t) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${t.id}</td>
+        <td>${t.cardId}</td>
+        <td>${t.merchantId}</td>
+        <td>${dollars(t.amountMinor)}</td>
+        <td class="${t.status === 'SUCCESS' ? 'status-ok' : 'status-fail'}">${STATUS_LABELS[t.status] ?? t.status}</td>
+        <td class="muted">${escapeHtml(t.errorReason) || "—"}</td>
+        <td class="muted">${timestamp(t.createdDate)}</td>`;
+      return tr;
+    }));
   } catch (err) {
-    tasks = [];
-    error.textContent = err.message;
-    error.hidden = false;
+    rows.innerHTML = `<tr><td colspan="7" class="empty">${escapeHtml(err.message)}</td></tr>`;
   }
-  render();
 }
 
-async function create(event) {
+// ---- purchase form ------------------------------------------------------
+
+function renderResult(response, ok) {
+  const panel = el("purchase-result");
+  panel.hidden = false;
+  panel.className = `result-panel ${ok ? "result-ok" : "result-fail"}`;
+  panel.innerHTML = ok
+    ? `<strong>Approved</strong> — transaction #${response.transactionId}, remaining balance ${dollars(response.remainingBalanceMinor)}`
+    : `<strong>Declined</strong> — ${escapeHtml(response.message || response)}`;
+}
+
+el("purchase-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
   const button = form.querySelector('button[type="submit"]');
   const error = el("form-error");
   error.hidden = true;
+  el("purchase-result").hidden = true;
 
-  // A double-click is two POSTs and two tasks. Hold the button down until the call resolves, and
-  // re-enable in `finally` so a validation failure doesn't strand the form.
   button.disabled = true;
   const data = new FormData(form);
+  const idempotencyKey = data.get("idempotencyKey") || newIdempotencyKey();
+  el("idempotency-key").value = idempotencyKey;
 
   try {
-    await request(API, {
+    const response = await request("/api/purchase", {
       method: "POST",
-      body: { title: data.get("title"), description: data.get("description") || null },
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: {
+        cardNum: data.get("cardNum"),
+        expiryDate: data.get("expiryDate"),
+        cvc: data.get("cvc"),
+        amountMinor: Math.round(Number(data.get("amount")) * 100),
+        merchantId: Number(data.get("merchantId")),
+        item: data.get("item") || null,
+      },
     });
-    form.reset();
-    toast("Task created");
-    await load();
+    renderResult(response, true);
+    toast("Purchase approved");
   } catch (err) {
-    error.textContent = err.message;
-    error.hidden = false;
+    renderResult(err, false);
+    toast(err.message, "error");
   } finally {
     button.disabled = false;
+    await Promise.all([loadCards(), loadTransactions()]);
   }
-}
+});
 
-// ---- wiring ---------------------------------------------------------------
+el("new-key").addEventListener("click", () => {
+  el("idempotency-key").value = newIdempotencyKey();
+});
 
-el("status-filter").insertAdjacentHTML("beforeend",
-  STATUSES.map((s) => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join(""));
+el("refresh-cards").addEventListener("click", loadCards);
+el("refresh-transactions").addEventListener("click", loadTransactions);
 
-el("create-form").addEventListener("submit", create);
-el("status-filter").addEventListener("change", load);
-el("refresh").addEventListener("click", load);
+// ---- startup ------------------------------------------------------------
 
-load();
+el("idempotency-key").value = newIdempotencyKey();
+loadCards();
+loadMerchants();
+loadTransactions();

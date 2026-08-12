@@ -40,6 +40,11 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, message);
     }
 
+    /** A well-formed, authorized request declined for lack of funds. */
+    public static ApiException paymentRequired(String message) {
+        return new ApiException(HttpStatus.PAYMENT_REQUIRED, message);
+    }
+
     public HttpStatus getStatus() {
         return status;
     }

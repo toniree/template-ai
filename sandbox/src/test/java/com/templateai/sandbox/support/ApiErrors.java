@@ -88,6 +88,11 @@ public final class ApiErrors {
         return apiError(HttpStatus.FORBIDDEN);
     }
 
+    /** 402 — well-formed, authorized request declined for lack of funds. */
+    public static ResultMatcher paymentRequired() {
+        return apiError(HttpStatus.PAYMENT_REQUIRED);
+    }
+
     /** The generic form: correct status line, and a body that is a well-formed {@link ApiError}. */
     public static ResultMatcher apiError(HttpStatus expected) {
         return ResultMatcher.matchAll(

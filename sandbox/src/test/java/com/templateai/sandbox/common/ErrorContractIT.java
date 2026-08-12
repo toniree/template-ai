@@ -23,6 +23,10 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code ResponseEntityExceptionHandler}: the catch-all was intercepting Spring MVC's own
  * exceptions before their correct status codes could be applied. Keep these tests when you delete
  * the sample domain — just repoint the paths.
+ *
+ * <p>No endpoint in this domain binds a typed query parameter, so the
+ * unparseable-query-parameter case from the original sample (an enum `status` filter) has no
+ * natural equivalent here and isn't reproduced.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -34,17 +38,10 @@ class ErrorContractIT {
 
     @Test
     void unparseablePathVariableIsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/tasks/not-a-number"))
+        mockMvc.perform(get("/api/cards/not-a-number"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status", is(400)))
                 .andExpect(jsonPath("$.message", is("Invalid value for 'id'")));
-    }
-
-    @Test
-    void unparseableQueryParameterIsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/tasks").param("status", "NOT_A_STATUS"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Invalid value for 'status'")));
     }
 
     @Test
@@ -56,14 +53,14 @@ class ErrorContractIT {
 
     @Test
     void unsupportedMethodIsMethodNotAllowed() throws Exception {
-        mockMvc.perform(put("/api/tasks/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(put("/api/purchase").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.status", is(405)));
     }
 
     @Test
     void malformedJsonIsBadRequest() throws Exception {
-        mockMvc.perform(post("/api/tasks")
+        mockMvc.perform(post("/api/purchase")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{ not json"))
                 .andExpect(status().isBadRequest())
