@@ -257,13 +257,22 @@ test mostly asserts that you wrote the mock correctly. The suite shares one data
 rows your test created, never on table-wide counts.
 
 Once a slice's service and controller are working and the happy path is proven manually (curl or
-the UI), **delegate writing that slice's integration test to a subagent** rather than writing it
-yourself — hand it `TaskApiIT` to copy, the endpoint contract, and the one rule that matters for
-that slice; review its output before calling the slice done. Writing every test yourself is the
-slower path and this scaffold is timed. Do not delegate a concurrency test (`Concurrently`) without
-personally verifying it fails for the right reason (409, not a timeout) — that class is easy to
-write in a way that passes without proving anything, and it is usually the single most valuable
-test in the build.
+the UI), **delegate writing that slice's integration test to Codex** rather than writing it
+yourself, pinning the model and effort explicitly so the build behaves the same regardless of
+whatever is currently set in `~/.codex/config.toml`:
+
+```bash
+codex exec -c model="gpt-5.6-sol" -c model_reasoning_effort="medium" \
+  --sandbox workspace-write \
+  "Write sandbox/src/test/java/com/templateai/sandbox/<feature>/<Feature>ApiIT.java, copying the
+   pattern in TaskApiIT.java. Endpoint contract: <paste it>. The one rule that matters: <name it>."
+```
+
+Review the diff it produces before calling the slice done — an agent that didn't see the rest of
+this conversation can misread the contract. Writing every test yourself is the slower path and this
+scaffold is timed. Do not delegate a concurrency test (`Concurrently`) without personally verifying
+it fails for the right reason (409, not a timeout) — that class is easy to write in a way that
+passes without proving anything, and it is usually the single most valuable test in the build.
 
 **Frontend** — light mode only. Do not add a `@media (prefers-color-scheme: dark)` block to
 `styles.css`; a prior dark palette left some text barely readable against dark backgrounds, and
