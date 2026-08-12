@@ -237,7 +237,21 @@ integration tests over real HTTP and a real database to many mocked unit tests �
 test mostly asserts that you wrote the mock correctly. The suite shares one database, so assert on
 rows your test created, never on table-wide counts.
 
-**Frontend** — `static/app.js` is config-driven: a table-and-form screen over a REST resource is
+Once a slice's service and controller are working and the happy path is proven manually (curl or
+the UI), **delegate writing that slice's integration test to a subagent** rather than writing it
+yourself — hand it an existing `*ApiIT` to copy, the endpoint contract, and the one rule that
+matters for that slice; review its output before calling the slice done. Writing every test
+yourself is the slower path and this scaffold is timed. Do not delegate a concurrency test
+(`Concurrently`) without personally verifying it fails for the right reason (409, not a timeout) —
+that class is easy to write in a way that passes without proving anything, and it is usually the
+single most valuable test in the build.
+
+**Frontend** — light mode only. Do not add a `@media (prefers-color-scheme: dark)` block to
+`styles.css`; a prior dark palette left some text barely readable against dark backgrounds, and
+re-tuning contrast for a second palette is not worth interview time. If asked for dark mode
+explicitly, build it as its own deliberate pass, not a default.
+
+`static/app.js` is config-driven: a table-and-form screen over a REST resource is
 one entry in `RESOURCES`, so use that when the problem fits it. When a workflow doesn't fit — a
 wizard, a dashboard, a detail view, anything that isn't a list plus a create form — write the
 smallest bespoke HTML/JS for it instead. **Never widen the generic renderer to accommodate a
