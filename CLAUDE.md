@@ -43,9 +43,26 @@ Work through it in this order. Steps 1–3 are one short response, not a documen
      fixtures instead of an admin CRUD, a stubbed payment that always succeeds).
    - *Production extensions* — described, never built.
 4. **Give a short slice plan.** Three to five vertical slices, ordered so each one is demoable on
-   its own. Not a layer plan — never "all the entities, then all the services".
-5. **Build one slice at a time**, end to end: persistence → service → endpoint → test → UI.
-6. **Run the tests after each slice** and report the real numbers.
+   its own. Not a layer plan — never "all the entities, then all the services". The moment you post
+   steps 1–4, **kick off a background Codex review of that plan** so a second opinion is ready by
+   the time I confirm — don't wait on it before asking for "go":
+   ```bash
+   codex exec -c model="gpt-5.6-sol" -c model_reasoning_effort="medium" --sandbox read-only \
+     "Review this interview-problem plan for gaps before building starts: <paste the restated
+      requirements, the invariant, the MVP/shortcuts/production split, and the slice plan>. Flag a
+      missed requirement, a wrong or incomplete invariant, a slice order that blocks demoing early,
+      or a shortcut that quietly drops named behaviour. Be terse — a punch list, not an essay."
+   ```
+   Run it with `run_in_background: true`. When I say "go", check its output: if it surfaced
+   something real, say so in one line before starting slice 1; if it found nothing or is still
+   running, start building anyway — never block the build waiting on it.
+5. **Build one slice at a time**, end to end: persistence → service → endpoint → seed data → UI.
+   The instant a slice's happy path works with seed data and a UI, **start the app and open it in
+   my browser** so I (and an interviewer) can poke around — don't wait for edge cases, declines, or
+   tests to be done first. A feature is not done until it's been seeded and clicked through in a
+   browser, not merely "appears in the UI" in the abstract; see **Definition of done** below.
+6. **While I'm poking around, write or delegate that slice's tests**, then run them and report the
+   real numbers. Test-writing happens after the demo is up, not as a gate in front of it.
 7. **Say what you deferred** at the end, unprompted.
 
 Fill gaps with the simplest reasonable assumption and state it in one line. Do not interview me
@@ -259,13 +276,36 @@ rows your test created, never on table-wide counts.
 Once a slice's service and controller are working and the happy path is proven manually (curl or
 the UI), **delegate writing that slice's integration test to Codex** rather than writing it
 yourself, pinning the model and effort explicitly so the build behaves the same regardless of
-whatever is currently set in `~/.codex/config.toml`:
+whatever is currently set in `~/.codex/config.toml`. Don't point it at an existing `*ApiIT` to copy
+— by the time you're on a real problem, `task/`'s sample domain (and `TaskApiIT` with it) is
+usually already deleted per step 1 of **Starting a new problem**. Describe the harness inline
+instead, so the prompt is self-contained regardless of what still exists in the repo:
 
 ```bash
 codex exec -c model="gpt-5.6-sol" -c model_reasoning_effort="medium" \
   --sandbox workspace-write \
-  "Write sandbox/src/test/java/com/templateai/sandbox/<feature>/<Feature>ApiIT.java, copying the
-   pattern in TaskApiIT.java. Endpoint contract: <paste it>. The one rule that matters: <name it>."
+  "Write sandbox/src/test/java/com/templateai/sandbox/<feature>/<Feature>ApiIT.java.
+
+   Test harness (read these first, don't invent a different pattern):
+   - sandbox/src/test/java/com/templateai/sandbox/support/ApiIntegrationTest.java — extend this.
+     Supplies 'http' (MockMvc), 'json' (ObjectMapper), 'postJson(path, body)'/'patchJson(...)', and
+     'as(userId)' for CurrentUser. Runs on the 'test' profile.
+   - sandbox/src/test/java/com/templateai/sandbox/support/ApiErrors.java — use created(),
+     notFound(), forbidden(), conflict(), badRequest(), validationError(...) to assert whole
+     ApiError shapes, not bare status codes. Add a new one if the feature needs a status code with
+     no existing matcher.
+   - Fixtures: this test can't rely on DemoData (it only runs on the h2 profile, never 'test') —
+     autowire the relevant repositories and create the rows each test needs directly.
+
+   Domain under test (read these before writing anything):
+   <list the entity/service/controller/DTO files for this feature>
+
+   Endpoint contract: <paste it>. The one rule that matters: <name it>. Write independent test
+   cases covering the happy path, each named decline/error reason, and validation failures. Do not
+   write a concurrency test — that's handled separately.
+
+   Compile-check your work: ./mvnw -o test -Dtest=<Feature>ApiIT (from sandbox/). Iterate until it
+   passes, then stop."
 ```
 
 Review the diff it produces before calling the slice done — an agent that didn't see the rest of
@@ -311,17 +351,29 @@ Demo data is seeded by `DemoData.java` on the `h2` profile only.
 
 ## Verifying a UI change
 
-1. Start the app using the IntelliJ `▶ Run App (8080)` configuration.
-2. Open or navigate the IDE browser to http://localhost:8080.
-3. Verify the changed flow interactively.
-4. Check http://localhost:8080/swagger-ui.html for API-only changes.
-5. Report what was verified and any browser-console or request errors.
+1. **Check whether something is already listening on 8080** (`lsof -nP -iTCP:8080 -sTCP:LISTEN`)
+   before starting your own instance. H2 here is in-memory per process, so a second instance can't
+   corrupt a shared schema the way it could on the `postgres` branch — but it also can't bind the
+   port, so starting one blindly just wastes a build and produces a confusing "port already in use"
+   error. Verify against the existing instance instead (`curl` it, or ask me to restart the
+   IntelliJ run config); only start your own if the port is free.
+2. Start the app using the IntelliJ `▶ Run App (8080)` configuration (or your own, if the port was
+   free).
+3. Open or navigate the IDE browser to http://localhost:8080.
+4. Verify the changed flow interactively.
+5. Check http://localhost:8080/swagger-ui.html for API-only changes.
+6. Report what was verified and any browser-console or request errors.
 
 ## Definition of done for a feature
 
 Endpoint works via curl · invalid input returns 400 with field details · unknown id returns 404 ·
-it appears in the UI · one integration test covering the happy path and the main rule · no
+seeded with demo data and opened in my browser for me to click through myself, not just "wired into
+the UI" on paper · one integration test covering the happy path and the main rule · no
 `System.out.println` left behind. That is the bar. Not more.
+
+"Appears in the UI" means I have actually seen it: seed data + a working screen + the app running
+in my browser, in that order, before the slice's tests. A slice whose backend works but whose only
+UI is still the stale sample screen is not done — say so rather than letting me discover it.
 
 Then **name the checkpoint**: when a slice is green, say so in one line and offer to commit it
 (don't commit unasked). Work in vertical slices so there is always a green commit to fall back to —
