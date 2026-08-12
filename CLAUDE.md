@@ -250,12 +250,27 @@ practical reason for the rule — a five-minute hold rule is otherwise a five-mi
 principal. Assert error outcomes with `support/ApiErrors` — `created()`, `validationError("title
 must not be blank")`, `notFound()`, `conflict()` — which check the whole `ApiError` body rather than
 just the status line, so a handler returning the right code with the wrong shape still fails.
-`TaskApiIT` uses all of it; copy that file. Prefer a few integration tests over real HTTP and a real
-database to many mocked unit tests — a mocked service test mostly asserts that you wrote the mock
-correctly. The suite shares one database, so assert on rows your test created, never on table-wide
-counts.
+`TaskApiIT` uses all of it; copy that file. It doesn't exercise `Concurrently` or `MutableClock` —
+reach for those when the feature actually has a contended invariant or an expiry rule. Prefer a few
+integration tests over real HTTP and a real database to many mocked unit tests — a mocked service
+test mostly asserts that you wrote the mock correctly. The suite shares one database, so assert on
+rows your test created, never on table-wide counts.
 
-**Frontend** — the sample shows the three shapes an interview demo needs: a **list** with a filter,
+Once a slice's service and controller are working and the happy path is proven manually (curl or
+the UI), **delegate writing that slice's integration test to a subagent** rather than writing it
+yourself — hand it `TaskApiIT` to copy, the endpoint contract, and the one rule that matters for
+that slice; review its output before calling the slice done. Writing every test yourself is the
+slower path and this scaffold is timed. Do not delegate a concurrency test (`Concurrently`) without
+personally verifying it fails for the right reason (409, not a timeout) — that class is easy to
+write in a way that passes without proving anything, and it is usually the single most valuable
+test in the build.
+
+**Frontend** — light mode only. Do not add a `@media (prefers-color-scheme: dark)` block to
+`styles.css`; a prior dark palette left some text barely readable against dark backgrounds, and
+re-tuning contrast for a second palette is not worth interview time. If asked for dark mode
+explicitly, build it as its own deliberate pass, not a default.
+
+The sample shows the three shapes an interview demo needs: a **list** with a filter,
 a **create form** that surfaces field-level validation errors, and a **detail view** that fetches
 one record by id. Both screens show a loading placeholder while a request is in flight and a toast
 on success. Copy whichever shape fits; the detail panel is deliberately its own section with its own
